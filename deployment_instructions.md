@@ -5,7 +5,7 @@
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `.github/workflows/develop.yml` | pull request to `main` | Lint, frontend build, backend tests |
-| `.github/workflows/main.yml` | push to `main` | Same checks, then a GitHub release and a Docker image on GHCR |
+| `.github/workflows/main.yml` | push to `main` | Same checks, then a GitHub release |
 | `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer |
 | `.github/workflows/backup.yml` | every day | Encrypted `pg_dump` of the database, kept 30 days |
 
