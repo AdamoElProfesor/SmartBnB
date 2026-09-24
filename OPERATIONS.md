@@ -37,11 +37,14 @@ Actions tab if that happens.
 [.github/workflows/backup.yml](.github/workflows/backup.yml) runs every day at
 03:17 UTC (and on demand). It runs `pg_dump` 17 from the official `postgres:17`
 image on the `public` schema, in custom format with maximum compression, checks
-that the dump is readable with `pg_restore --list`, and uploads it as a workflow
-artifact kept for **30 days**.
+that the dump is readable with `pg_restore --list`, encrypts it with GPG
+(AES-256) and uploads it as a workflow artifact kept for **30 days**. Artifacts
+of a public repository can be downloaded by anyone, so the dump is never
+uploaded in clear.
 
-It needs one repository secret, `BACKUP_DATABASE_URL`: the Supabase **session
-pooler** URL (`aws-0-eu-central-2.pooler.supabase.com`, port **5432**, same user
+It needs two repository secrets. `BACKUP_PASSPHRASE` encrypts the dump: keep a
+copy somewhere safe, without it the backups cannot be read.
+`BACKUP_DATABASE_URL` is the Supabase **session pooler** URL (`aws-0-eu-central-2.pooler.supabase.com`, port **5432**, same user
 and password as `DATABASE_URL`, with `?sslmode=require`). The transaction pooler
 (port 6543) does not work with `pg_dump`.
 
@@ -49,8 +52,14 @@ A failed backup emails the repository owner, like the uptime check.
 
 ### Restore
 
-1. Actions tab, "Database backup", pick a successful run, download the artifact
-   and unzip it to get `smartbnb-public-<date>.dump`.
+1. Actions tab, "Database backup", pick a successful run, download the artifact,
+   unzip it to get `smartbnb-public-<date>.dump.gpg` and decrypt it with the
+   `BACKUP_PASSPHRASE`:
+
+   ```bash
+   gpg --output smartbnb-public-<date>.dump --decrypt smartbnb-public-<date>.dump.gpg
+   ```
+
 2. Restore with a Postgres 17 client (for example `docker run --rm -it -v
    "$PWD:/b" postgres:17 bash`), using the session pooler URL of the target
    database:
