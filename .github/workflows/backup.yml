@@ -1,0 +1,60 @@
+name: Database backup
+
+# Daily pg_dump of the Supabase "public" schema, kept as a workflow artifact.
+# Restore instructions: OPERATIONS.md.
+on:
+  schedule:
+    - cron: "17 3 * * *" # every day at 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Dump the public schema (pg_dump 17, custom format)
+        env:
+          # Session pooler URL (port 5432): pg_dump does not work through the
+          # transaction pooler (port 6543).
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_DATABASE_URL}" ]; then
+            echo "::error::The BACKUP_DATABASE_URL secret is not set"
+            exit 1
+          fi
+          FILE="smartbnb-public-$(date -u +%Y%m%d-%H%M).dump"
+          echo "FILE=${FILE}" >> "$GITHUB_ENV"
+          mkdir -p backup
+          docker run --rm -e BACKUP_DATABASE_URL -v "$PWD/backup:/backup" postgres:17 \
+            sh -c 'pg_dump "$BACKUP_DATABASE_URL" --schema=public --format=custom --compress=9 --no-owner --no-privileges --file="/backup/'"${FILE}"'"'
+
+      - name: Check the dump
+        run: |
+          set -euo pipefail
+          SIZE=$(stat -c %s "backup/${FILE}")
+          echo "Dump size: ${SIZE} bytes"
+          if [ "${SIZE}" -lt 100000 ]; then
+            echo "::error::Dump is suspiciously small (${SIZE} bytes)"
+            exit 1
+          fi
+          docker run --rm -v "$PWD/backup:/backup" postgres:17 \
+            pg_restore --list "/backup/${FILE}" > toc.txt
+          echo "Tables in dump: $(grep -c ' TABLE DATA ' toc.txt)"
+          echo "### Backup ${FILE}: ${SIZE} bytes, $(grep -c ' TABLE DATA ' toc.txt) tables" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the dump
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILE }}
+          path: backup/${{ env.FILE }}
+          retention-days: 30
+          compression-level: 0 # already compressed by pg_dump
+          if-no-files-found: error

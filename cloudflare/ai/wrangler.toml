@@ -1,0 +1,10 @@
+name = "smartbnb-ai"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[ai]
+binding = "AI"
+
+# Shared key the backend sends as "Authorization: Bearer <key>":
+#   npx wrangler secret put AI_API_KEY

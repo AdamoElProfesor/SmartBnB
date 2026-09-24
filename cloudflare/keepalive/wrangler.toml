@@ -1,0 +1,8 @@
+name = "smartbnb-keepalive"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+# Every 10 minutes: keeps Render awake and Supabase active.
+[triggers]
+crons = ["*/10 * * * *"]

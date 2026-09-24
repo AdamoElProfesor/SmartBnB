@@ -1,0 +1,142 @@
+name: Push to main
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Render deploys the service itself once this workflow's checks pass, so there is
+# no deploy job here. Tests mock the database and the AI, so they need no secrets.
+env:
+  VITE_API_BASE: ${{ vars.VITE_API_BASE || '/api' }}
+
+jobs:
+  lint-and-test:
+    name: Lint + Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            smartbnb/frontend/package-lock.json
+            smartbnb/backend/package-lock.json
+
+      # Frontend
+      - name: Install FE
+        working-directory: smartbnb/frontend
+        run: npm ci
+
+      - name: Lint FE
+        working-directory: smartbnb/frontend
+        run: npm run lint --if-present
+
+      - name: Build FE
+        working-directory: smartbnb/frontend
+        env:
+          VITE_API_BASE: ${{ env.VITE_API_BASE }}
+        run: npm run build
+
+      # Backend
+      - name: Install BE
+        working-directory: smartbnb/backend
+        run: npm ci
+
+      - name: Lint BE
+        working-directory: smartbnb/backend
+        run: npm run lint --if-present
+
+      - name: Test BE
+        working-directory: smartbnb/backend
+        run: npm test --if-present
+
+  version-and-release:
+    name: Compute next version & create release
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next patch version
+        id: compute
+        shell: bash
+        run: |
+          git fetch --tags --force
+          LAST_TAG=$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="1.0.0"
+          else
+            IFS='.' read -r MAJ MIN PAT <<< "$LAST_TAG"
+            PAT=$((PAT+1))
+            VERSION="${MAJ}.${MIN}.${PAT}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.compute.outputs.version }}
+          name: SmartBnB ${{ steps.compute.outputs.version }}
+          generate_release_notes: true
+
+  build-and-push-image:
+    name: Build & Push Docker image
+    runs-on: ubuntu-latest
+    needs: version-and-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine image name
+        id: img
+        run: |
+          IMAGE="ghcr.io/$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push
+        env:
+          VITE_API_BASE: ${{ env.VITE_API_BASE }}
+        run: |
+          VERSION="${{ needs.version-and-release.outputs.version }}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          echo "Building $IMAGE:$VERSION and $IMAGE:latest"
+          docker buildx build \
+            --file smartbnb/Dockerfile \
+            --build-arg VITE_API_BASE="$VITE_API_BASE" \
+            --tag "$IMAGE:$VERSION" \
+            --tag "$IMAGE:latest" \
+            --push \
+            .

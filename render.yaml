@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: smartbnb
+    env: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./smartbnb/Dockerfile
+    autoDeploy: false
+    previewsEnabled: false
+    buildFilter:
+      paths:
+        - smartbnb/frontend/**
+        - smartbnb/backend/**
+        - smartbnb/Dockerfile
+        - render.yaml
+    build:
+      args:
+        VITE_API_BASE: /api

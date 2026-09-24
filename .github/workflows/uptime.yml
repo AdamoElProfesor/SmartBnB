@@ -1,0 +1,47 @@
+name: Uptime check
+
+# A failed run makes GitHub email the repository owner (default Actions
+# notification settings), which is the alerting channel for smartbnb.ch.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check https://www.smartbnb.ch
+        run: |
+          set -uo pipefail
+          # 3 attempts with a 60 s timeout each, so a Render cold start does
+          # not count as an outage.
+          check() {
+            local url="$1" expect="$2" type="$3"
+            for attempt in 1 2 3; do
+              code=$(curl -sS -o body.txt -w '%{http_code}' --max-time 60 \
+                -H 'User-Agent: smartbnb-uptime' "$url") || code=000
+              if [ "$code" = 200 ] && grep -q "$expect" body.txt; then
+                if [ "$type" != json ] || jq -e . body.txt > /dev/null; then
+                  echo "OK   $url (attempt $attempt)"
+                  return 0
+                fi
+              fi
+              echo "FAIL $url attempt $attempt: HTTP $code"
+              [ "$attempt" -lt 3 ] && sleep 20
+            done
+            echo "::error::$url is down (last HTTP status $code)"
+            return 1
+          }
+          status=0
+          check "https://www.smartbnb.ch/" "<title>SmartBnB" html || status=1
+          check "https://www.smartbnb.ch/api/histogram" '"ok":true' json || status=1
+          exit $status
