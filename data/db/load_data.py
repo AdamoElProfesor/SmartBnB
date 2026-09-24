@@ -255,14 +255,24 @@ DERIVED_SQL = """
 TRUNCATE public.airbnb_points, public.current_prices,
          public.neighbourhood_room_type_stats, public.neighbourhood_stats;
 
--- Latest valid price of each listing, if seen in the last 6 months.
+-- Latest valid price of each listing, from the Inside Airbnb snapshots or
+-- from data/prices/scrape_prices.py (price_observations), whichever is newer,
+-- if seen in the 6 months before the newest price.
 INSERT INTO public.current_prices (listing_id, price, price_date)
-SELECT DISTINCT ON (listing_id) listing_id, price, last_scraped
-FROM public.airbnb_snapshots
-WHERE price IS NOT NULL
-  AND last_scraped >= (SELECT MAX(last_scraped) FROM public.airbnb_snapshots)
-                      - interval '6 months'
-ORDER BY listing_id, last_scraped DESC;
+WITH prices AS (
+  SELECT listing_id, price, last_scraped AS price_date
+  FROM public.airbnb_snapshots
+  WHERE price IS NOT NULL
+  UNION ALL
+  SELECT listing_id, nightly_price::double precision, observed_at::date
+  FROM public.price_observations
+  WHERE status = 'ok' AND nightly_price >= %(min_price)s
+)
+SELECT DISTINCT ON (p.listing_id) p.listing_id, p.price, p.price_date
+FROM prices p
+JOIN public.airbnb_vaud v ON v.id = p.listing_id
+WHERE p.price_date >= (SELECT MAX(price_date) FROM prices) - interval '6 months'
+ORDER BY p.listing_id, p.price_date DESC;
 
 INSERT INTO public.airbnb_points (airbnb_id, total_points)
 SELECT aa.airbnb_id, SUM(ap.point)
@@ -270,21 +280,20 @@ FROM public.airbnb_amenities aa
 JOIN public.amenity_points ap ON ap.amenity_id = aa.amenity_id
 GROUP BY aa.airbnb_id;
 
--- Price stats over the most recent priced scrapes only (current market).
+-- Price stats of the current market: one price per listing (its latest),
+-- among prices seen in the last months before the newest one.
 INSERT INTO public.neighbourhood_room_type_stats
   (neighbourhood, room_type, avg_price, median_price, count_airbnb)
 SELECT
   v.neighbourhood_cleansed,
   v.room_type,
-  AVG(s.price),
-  percentile_cont(0.5) WITHIN GROUP (ORDER BY s.price),
+  AVG(cp.price),
+  percentile_cont(0.5) WITHIN GROUP (ORDER BY cp.price),
   COUNT(*)
-FROM public.airbnb_snapshots s
-JOIN public.airbnb_vaud v ON v.id = s.listing_id
-WHERE s.price IS NOT NULL
-  AND s.last_scraped >= (SELECT MAX(last_scraped) FROM public.airbnb_snapshots
-                         WHERE price IS NOT NULL)
-                        - make_interval(months => %(months)s)
+FROM public.current_prices cp
+JOIN public.airbnb_vaud v ON v.id = cp.listing_id
+WHERE cp.price_date >= (SELECT MAX(price_date) FROM public.current_prices)
+                       - make_interval(months => %(months)s)
   AND v.neighbourhood_cleansed IS NOT NULL
   AND v.room_type IS NOT NULL
 GROUP BY 1, 2;
@@ -366,7 +375,8 @@ def main():
                 copy_rows(cur, "stage_amenities", ["airbnb_id", "amenity_id"], build_amenities(df))
                 run_statements(cur, MERGE_SQL)
 
-            run_statements(cur, DERIVED_SQL, {"months": args.stats_months})
+            run_statements(cur, DERIVED_SQL, {"months": args.stats_months,
+                                          "min_price": MIN_PLAUSIBLE_MEDIAN_PRICE})
 
             for table in ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities", "airbnb_points",
                           "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats"):
