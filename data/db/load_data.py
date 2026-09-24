@@ -1,10 +1,9 @@
 """Load InsideAirbnb snapshots of Vaud into the SmartBnB database.
 
-Snapshots are read from data/*.csv.gz, all kept in git: InsideAirbnb only
-publishes the last 12 months, so the repository is the archive. Downloaded
-snapshots are saved there too, to be committed. By default only scrapes that
-are not in the database yet are added, so the history survives even after
-InsideAirbnb stops publishing old months. Then, in the same transaction:
+Snapshots are read from data/*.csv.gz, all kept in git so the database can be
+rebuilt from a clone. Downloaded snapshots are saved there too, to be
+committed. By default only scrapes that are not in the database yet are
+added, so the history is never lost. Then, in the same transaction:
   - listings and amenities are refreshed from each listing's latest scrape
   - amenity points and neighbourhood stats are recomputed
 
