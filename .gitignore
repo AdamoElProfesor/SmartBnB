@@ -7,8 +7,6 @@ node_modules
 .venv
 __pycache__/
 
-# Downloaded InsideAirbnb snapshots
-data/cache/
 
 # Frontend build output (built in Docker)
 smartbnb/frontend/dist/

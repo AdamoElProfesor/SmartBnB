@@ -60,10 +60,11 @@ python load_data.py --dates 2025-07-04 ...   # download + add specific snapshots
 python load_data.py --full                   # wipe and reload every file on disk
 ```
 
-Snapshots come from `data/*.csv.gz` (2024-07 to 2025-06, kept in git because
-InsideAirbnb only publishes the last 12 months) and `data/cache/*.csv.gz`
-(downloaded, not in git). By default only scrapes missing from the database
-are added, so the history is never lost.
+Snapshots come from `data/*.csv.gz`, every month since July 2024. They are all
+kept in git because InsideAirbnb only publishes the last 12 months: the
+repository is the archive. `--fetch` and `--dates` save new downloads there,
+so commit them after loading. By default only scrapes missing from the
+database are added, so the history is never lost.
 
 Prices below 5 CHF are treated as missing: some 2026 scrapes ship a broken
 price column. `current_prices` holds each listing's latest valid price.
