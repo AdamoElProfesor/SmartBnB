@@ -1,68 +1,33 @@
-# SmartBnB — How to update the pipeline for a new feature
+# SmartBnB: CI and deployment
 
-This document explains how to change our GitHub actions pipelines when a feature requires it
+## Workflows
 
-**Workflows in use**
-- PR checks: `.github/workflows/develop.yml`
-- Release & deploy: `.github/workflows/main.yml` 
----
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `.github/workflows/develop.yml` | pull request to `main` | Lint, frontend build, backend tests |
+| `.github/workflows/main.yml` | push to `main` | Same checks, then a GitHub release and a Docker image on GHCR |
+| `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer |
+| `.github/workflows/backup.yml` | every day | Encrypted `pg_dump` of the database, kept 30 days |
 
-## When you should modify CI/CD
-- A feature adds a new package, tool, or runtime
-- A service needs new secrets or environment variables
-- Deploying a new Render service or changing deploy hooks
+The tests mock the database and the AI, so the checks need no secrets. Only
+the backup uses secrets (`BACKUP_DATABASE_URL`, `BACKUP_PASSPHRASE`, see
+[OPERATIONS.md](OPERATIONS.md)).
 
----
+## How a change reaches production
 
-## Extend PR checks (`develop.yml`)
-Add steps in `jobs.lint-and-test.steps` in this order :
-1) Setup tools → 2) Lint → 3) Unit tests → 4) Build
+1. Work on a branch (`feat/...` or `fix/...`) and open a pull request.
+2. The "Lint + Tests" check must pass: `main` is protected and only accepts
+   changes through pull requests with a green check.
+3. After the merge, Render waits for the checks on `main`, then builds
+   `smartbnb/Dockerfile` and deploys. There is no deploy step in the
+   workflows.
 
-- Example: new env variables for tests :
-```yaml
-env:
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-```
+## Changing the pipeline
 
----
-
-## Adjust release & deploy (`main.yml`)
-
-### 1) Versioning
-The job `version-and-release` auto-bumps the patch from the last `1.0.X` tag. If you need a minor/major bump, push a tag beforehand or update the compute step
-
-### 2) Docker image
-The job `build-and-push-image` builds and pushes to GHCR. If the app structure or image name changes:
-```yaml
-- name: Determine image name
-  run: echo "IMAGE=ghcr.io/<org>/smartbnb" >> $GITHUB_ENV
-```
-If you need build args:
-```yaml
-- name: Build & push
-  uses: docker/build-push-action@v6
-  with:
-    push: true
-    tags: ${{ env.IMAGE }}:${{ needs.version-and-release.outputs.version }}
-    build-args: |
-      VITE_API_BASE=/api
-```
-
-### 3) Deploy to Render
-The job `deploy-render` triggers the deploy hook. For a new Render service, add another step with the new secret:
-```yaml
-- name: Trigger Render Deploy Hook (API)
-  run: curl -fsSL "$RENDER_API_DEPLOY_HOOK"
-  env:
-    RENDER_API_DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
-```
-
----
-
-## Secrets & env management
-- Add secrets in **Settings → Secrets and variables → Actions**.
-- Reference via `${{ secrets.NAME }}`
-
----
-
+- New tool or runtime for the checks: add the step to the `lint-and-test` job
+  of both `develop.yml` and `main.yml`, so pull requests and `main` run the
+  same checks.
+- New runtime environment variable for the app: set it on the Render service
+  and document it in `smartbnb/backend/.env.example`.
+- Version bump: `main.yml` increments the patch of the last `X.Y.Z` tag. Push
+  a tag by hand for a minor or major bump.
