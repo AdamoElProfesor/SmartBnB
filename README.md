@@ -91,6 +91,13 @@ shows the date its price was seen.
 - [Operations](docs/operations.md): keep-alive, uptime checks, alerts, backups
 - [Data loading](data/db/README.md) and [Cloudflare Workers](cloudflare/README.md)
 
+## Contributing
+
+Issues and pull requests are welcome. Start with the
+[`good first issue`](https://github.com/AdamoElProfesor/SmartBnB/labels/good%20first%20issue)
+label and read [CONTRIBUTING.md](CONTRIBUTING.md). Security problems:
+[SECURITY.md](SECURITY.md).
+
 ## Credits
 
 SmartBnB started in 2025 as a student project at HEIG-VD by Adam Gruber
