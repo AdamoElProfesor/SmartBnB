@@ -73,10 +73,11 @@ production setup: [docs/deployment.md](docs/deployment.md).
 
 Listing data comes from [Inside Airbnb](https://insideairbnb.com/) and is
 licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The 2024-2025
-snapshots in `data/*.csv.gz` are kept in the repository because Inside Airbnb
-only publishes the last twelve months; newer ones are downloaded by
-`python data/db/load_data.py --fetch`.
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Every monthly
+snapshot since July 2024 is in [`data/`](data), compressed: Inside Airbnb only
+publishes the last twelve months, so the repository keeps the full history and
+the database can be rebuilt from a clone. New snapshots are downloaded with
+`python data/db/load_data.py --fetch` and committed.
 
 Since June 2026 the Inside Airbnb snapshots for Vaud no longer contain usable
 prices, so the prices shown date from May 2026 at the latest. Each result
