@@ -76,6 +76,16 @@ A failed backup emails the repository owner, like the uptime check.
    To restore a single table, add `--table <name>`. To restore into a fresh
    Supabase project, drop `--clean --if-exists`.
 
+## Visitor analytics
+
+Page views are counted with Cloudflare Web Analytics (dashboard: Analytics &
+Logs > Web Analytics > www.smartbnb.ch). It uses no cookies and stores no
+personal data, so no consent banner is needed. The beacon is loaded by
+`smartbnb/frontend/src/lib/analytics.js` only on `www.smartbnb.ch`, so local
+runs and forks do not report to the dashboard. The Content-Security-Policy in
+`smartbnb/backend/src/server.js` allows `static.cloudflareinsights.com` and
+`cloudflareinsights.com` for it.
+
 ## Cloudflare zone settings
 
 Set on the `smartbnb.ch` zone (SSL/TLS in the dashboard):
