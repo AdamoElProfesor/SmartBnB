@@ -10,7 +10,7 @@
 
 The tests mock the database and the AI, so the checks need no secrets. Only
 the backup uses secrets (`BACKUP_DATABASE_URL`, `BACKUP_PASSPHRASE`, see
-[OPERATIONS.md](OPERATIONS.md)).
+[operations.md](operations.md)).
 
 ## How a change reaches production
 
