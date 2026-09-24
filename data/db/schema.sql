@@ -2,7 +2,7 @@
 --
 -- Reconstructed from the queries in smartbnb/backend/src/repositories/sql
 -- and data/db/load_data.py. Safe to re-run: it drops and
--- recreates every table.
+-- recreates every table except price_observations (collected prices).
 
 DROP TABLE IF EXISTS
   public.ai_analyses,
@@ -119,6 +119,35 @@ CREATE TABLE public.neighbourhood_stats (
 );
 
 -- -----------------------------------------------------------------
+-- Prices collected by data/prices/scrape_prices.py (raw layer): one row
+-- per listing and run. The breakdown is kept so the nightly price metric
+-- can be recomputed without collecting again. Not tied to airbnb_vaud:
+-- searches also return listings Inside Airbnb has not recorded yet.
+-- nightly_price = (total - taxes) / nights, NULL when no price was found.
+-- Never dropped by this script: the collected prices are not in the
+-- repository and could not be rebuilt.
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.price_observations (
+  run_id         text        NOT NULL,
+  listing_id     bigint      NOT NULL,
+  observed_at    timestamptz NOT NULL DEFAULT now(),
+  method         text        NOT NULL CHECK (method IN ('search', 'listing')),
+  status         text        NOT NULL CHECK (status IN ('ok', 'unavailable', 'error')),
+  check_in       date,
+  nights         integer,
+  adults         integer,
+  nights_amount  numeric(10, 2),
+  taxes          numeric(10, 2),
+  total          numeric(10, 2),
+  currency       text,
+  nightly_price  numeric(10, 2),
+  breakdown      jsonb,
+  PRIMARY KEY (run_id, listing_id)
+);
+CREATE INDEX IF NOT EXISTS price_observations_listing_idx
+  ON public.price_observations (listing_id, observed_at DESC);
+
+-- -----------------------------------------------------------------
 -- Cache of the AI pros/cons analysis, filled by POST /api/score.
 -- data_version is a hash of the data sent to the model, so a new scrape
 -- or price gives a new row instead of a stale analysis.
@@ -185,6 +214,7 @@ ALTER TABLE public.neighbourhood_stats           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.raw_airbnb_vaud               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
 
 -- Supabase only: also hide the tables from the anon / authenticated roles
 -- (REST and GraphQL). Skipped on a plain Postgres where they do not exist.
