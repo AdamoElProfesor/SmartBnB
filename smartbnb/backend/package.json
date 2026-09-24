@@ -5,8 +5,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "jest --runInBand",
-    "lint": "node -e \"process.exit(0)\""
+    "test": "jest --runInBand"
   },
   "devDependencies": {
     "jest": "^29.7.0",
