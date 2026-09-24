@@ -1,7 +1,7 @@
 name: Database backup
 
 # Daily pg_dump of the Supabase "public" schema, kept as a workflow artifact.
-# Restore instructions: OPERATIONS.md.
+# Restore instructions: docs/operations.md.
 on:
   schedule:
     - cron: "17 3 * * *" # every day at 03:17 UTC
@@ -51,7 +51,7 @@ jobs:
           echo "### Backup ${FILE}: ${SIZE} bytes, $(grep -c ' TABLE DATA ' toc.txt) tables" >> "$GITHUB_STEP_SUMMARY"
 
       # Artifacts of a public repository can be downloaded by anyone, so the
-      # dump is encrypted before upload (restore steps: OPERATIONS.md).
+      # dump is encrypted before upload (restore steps: docs/operations.md).
       - name: Encrypt the dump
         env:
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
