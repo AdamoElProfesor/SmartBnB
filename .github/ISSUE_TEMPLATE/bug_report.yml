@@ -1,0 +1,49 @@
+name: Bug report
+description: Something on smartbnb.ch or in the code does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: I pasted https://www.airbnb.ch/rooms/... and got "The check didn't go through".
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to https://www.smartbnb.ch
+        2. Paste ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: listing
+    attributes:
+      label: Airbnb listing link (if relevant)
+      placeholder: https://www.airbnb.ch/rooms/53584592
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - On smartbnb.ch
+        - Running the project locally
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: Firefox 131 on Windows, Safari on iPhone...
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs
+      description: Anything else that helps, for example a screenshot or the browser console.
