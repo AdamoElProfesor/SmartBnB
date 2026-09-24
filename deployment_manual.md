@@ -1,113 +1,63 @@
-# SmartBnB — Deployment guide
+# SmartBnB: running and deploying
 
-This mini guide helps you run the SmartBnB Docker image or directly on machine
+SmartBnB is one Node.js service: the Express API (`smartbnb/backend`) also
+serves the built Vue app (`smartbnb/frontend/dist`). It needs a Postgres
+database loaded with the Inside Airbnb data.
 
----
+## 1) Database
 
-# Docker
+Create the schema and load the data as described in
+[data/db/README.md](data/db/README.md) (`schema.sql`, then
+`python load_data.py`). A local Postgres or a free Supabase project both work.
 
-## 1) Setup env vars
-
-Before pulling the Docker image, you have to create a ``.env`` file with these fields :
+## 2) Environment
 
 ```bash
-DATA_MODE=sql
-DATABASE_URL=<YOUR_DATABASE_URL>  # see data/db/README.md
-# AI analysis (optional, leave empty to disable it). Either an OpenAI-compatible
-# endpoint such as the Workers AI Worker (see cloudflare/README.md):
-AI_BASE_URL=<YOUR_AI_ENDPOINT>/v1
-AI_API_KEY=<YOUR_AI_KEY>
-AI_MODEL=@cf/openai/gpt-oss-20b
-# or OpenAI directly:
-OPENAI_API_KEY=<YOUR_OPENAI_KEY>
-VITE_API_BASE=/api
+cp smartbnb/backend/.env.example smartbnb/backend/.env
 ```
 
-## 2) Pull the docker image
+Set at least `DATABASE_URL`. The AI analysis is optional: without `AI_*` or
+`OPENAI_API_KEY` the score is shown without it.
 
-Once the ``.env`` file has been created, all you need to do now is pull the SmartBnB Docker image via the GitHub Registry :
+## 3) Run with Node.js
 
-### Mac
-
-```bash
-docker pull --platform linux/amd64 ghcr.io/cestpolo/smartbnb:latest
-```
-
-### Windows
+Node.js 22 is required.
 
 ```bash
-docker pull ghcr.io/cestpolo/smartbnb:latest
-```
-
-### 3) Create Docker container
-
-All you have to do now is run a Docker container :
-
-> You can remove ``--platform linux/amd64`` if you are on Windows
-
-```bash
-# From the folder that contains your .env file
-docker run --platform linux/amd64 --rm -p 3000:3000 \
-  --env-file ./.env \
-  --name smartbnb ghcr.io/cestpolo/smartbnb:1.0.14
-```
-
-You can now open your browser on ``http://localhost:3000``
-
----
-
-# From GitHub release
-
-## 1) Download the release
-
-You have to go on the ``releases`` section on our repository and to download the latest zip file and unzip the this in a directory
-
-## 2) Setup env vars
-
-Once you have the project, you have to create 2 .env files, one in the backend and the other in frontend directory
-
-### ``smartbnb/backend/.env``
-
-```bash
-DATA_MODE=sql
-DATABASE_URL=<YOUR_DATABASE_URL>  # see data/db/README.md
-# AI analysis (optional, leave empty to disable it). Either an OpenAI-compatible
-# endpoint such as the Workers AI Worker (see cloudflare/README.md):
-AI_BASE_URL=<YOUR_AI_ENDPOINT>/v1
-AI_API_KEY=<YOUR_AI_KEY>
-AI_MODEL=@cf/openai/gpt-oss-20b
-# or OpenAI directly:
-OPENAI_API_KEY=<YOUR_OPENAI_KEY>
-```
-
-### ``smartbnb/frontend/.env``
-
-```bash
-VITE_API_BASE=/api
-```
-
-## Setup with node.js
-
-Now you have to download npm package and run the backend and the frontend in 2 separates shell :
-
-> You need to have node.js 20+ version
-
-### Frontend
-
-```bash
-cd frontend/
+# Build the frontend once (the backend serves it)
+cd smartbnb/frontend
 npm ci
 npm run build
-npm run dev
-````
 
-### Backend
+# Start the API and the app on http://localhost:3000
+cd ../backend
+npm ci
+npm start
+```
+
+For frontend work with hot reload, keep the backend running and start
+`npm run dev` in `smartbnb/frontend`: Vite serves the app on
+http://localhost:5173 and proxies `/api` to the backend.
+
+Backend tests: `npm test` in `smartbnb/backend`. They mock the database and
+the AI, so they need no `.env`.
+
+## 4) Run with Docker
 
 ```bash
-cd backend/
-npm ci
-npm run dev
-````
+docker build -f smartbnb/Dockerfile -t smartbnb .
+docker run --rm -p 3000:3000 --env-file smartbnb/backend/.env smartbnb
+```
 
-You can now open your browser on ``http://localhost:5173``
+Then open http://localhost:3000.
 
+## Production setup
+
+- **Render** runs the Docker image (`smartbnb/Dockerfile`) and deploys `main`
+  once the GitHub checks pass. Health check: `GET /api/health`.
+- **Cloudflare** serves `smartbnb.ch` through the relay Worker, runs the
+  open-weights AI endpoint and the keep-alive Worker: see
+  [cloudflare/README.md](cloudflare/README.md).
+- **Supabase** hosts the Postgres database.
+- Monitoring and backups: [OPERATIONS.md](OPERATIONS.md). CI:
+  [deployment_instructions.md](deployment_instructions.md).
