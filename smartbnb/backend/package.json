@@ -1,0 +1,23 @@
+{
+  "name": "smartbnb-backend",
+  "version": "0.1.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "jest --runInBand",
+    "lint": "node -e \"process.exit(0)\""
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.4"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "openai": "^5.17.0",
+    "pg": "^8.16.3"
+  }
+}
