@@ -1,115 +1,101 @@
 # SmartBnB
 
+**Is this Airbnb a good deal?** Paste an Airbnb listing from canton Vaud,
+Switzerland, and SmartBnB compares it with similar stays nearby: price, review
+activity, amenities and host status, summed up in a score out of 100.
+
+**Live at [smartbnb.ch](https://www.smartbnb.ch)**
+
 https://github.com/user-attachments/assets/e4382435-9a17-4f5f-85fb-becbc3c5df38
 
-## Overview
+## What it does
 
-Airbnb is a popular platform for finding temporary accommodations, whether 
-for short-term stays or longer visits. With so many options available, it 
-can be overwhelming to choose the right place, and sometimes, you might 
-end up making a less than ideal deal.
+- **Check a listing.** Paste a link like `https://www.airbnb.ch/rooms/53584592`
+  and get a SmartScore out of 100, the nightly price against the median of the
+  same room type in the same neighbourhood, the rating, review activity and
+  key amenities.
+- **Read a short analysis.** An open-weights language model turns those
+  numbers into strengths and points to watch out for.
+- **Explore the region.** A price map of the active listings, Top 10 lists
+  (best rated, cheapest, most reviewed this year) and price trends by district.
 
-This is where SmartBnB comes in. SmartBnB helps you make smarter decisions 
-by allowing you to paste the URL of an Airbnb listing and instantly 
-analyze whether it’s a good deal in the Vaud district.
+## How the score works
 
-Beyond evaluating individual listings, SmartBnB provides a clear 
-visualization of the Vaud district. You can explore local price trends, 
-compare 
-rates across different areas, and see how prices fluctuate throughout the 
-seasons.
+Each listing is compared with the same room type in the same neighbourhood:
 
-SmartBnB is a web app designed to help you choose your Airbnb more 
-intelligently, saving you both time and money.
+| Part | Weight | Better when |
+|---|---|---|
+| Price | 45% | the nightly price is below the local median |
+| Review activity | 30% | the listing gets more reviews per month than the area |
+| Key amenities | 15% | it has the amenities guests look for most |
+| Superhost | 10% | the host is a Superhost |
 
+The code is in
+[`smartbnb/backend/src/utils/score.utils.js`](smartbnb/backend/src/utils/score.utils.js).
 
-## Objectives
+## Architecture
 
-1. <b>Data Storage</b>: Collect and store the InsideAirbnb.com dataset in 
-a cloud database, designing structured tables that enable insightful 
-analysis and smarter decision-making.
+```mermaid
+flowchart LR
+  user[Browser] --> relay[Cloudflare Worker<br/>smartbnb.ch]
+  relay --> app[Render: Express API<br/>+ Vue app]
+  app --> db[(Supabase Postgres)]
+  app --> ai[Cloudflare Worker<br/>Workers AI, gpt-oss-20b]
+  loader[data/db/load_data.py] --> db
+  insideairbnb[Inside Airbnb snapshots] --> loader
+```
 
-2. <b>Data Pipeline</b>: Load the InsideAirbnb.com snapshots into the 
-database and refresh them with `data/db/load_data.py` (run manually, e.g. 
-`python load_data.py --fetch`), without ever losing the snapshot history. 
-See [data/db/README.md](data/db/README.md).
-3. <b>Web App</b>:  Develop the SmartBnB web application, allowing users 
-to paste an Airbnb listing URL and receive an evaluation of whether it 
-represents a good deal.
-4. <b>Visualizations</b>: Provide interactive visualizations of the Vaud 
-district, including neighborhood comparisons and seasonal price trends.
+| Folder | Content |
+|---|---|
+| [`smartbnb/frontend`](smartbnb/frontend) | Vue 3 + Vite app, Leaflet maps on OpenStreetMap |
+| [`smartbnb/backend`](smartbnb/backend) | Node.js + Express API, also serves the built app |
+| [`data`](data) | Inside Airbnb snapshots and the loader that fills the database |
+| [`cloudflare`](cloudflare) | Workers: domain relay, AI endpoint, keep-alive |
+| [`docs`](docs) | Guides for running, deploying and operating the app |
 
+## Run it locally
 
-## Fonctional Requirements
+You need Node.js 22 and a Postgres database loaded with the data (see
+[data/db/README.md](data/db/README.md)).
 
-1. <b>User Input</b>
+```bash
+cp smartbnb/backend/.env.example smartbnb/backend/.env   # set DATABASE_URL
 
-    Users can paste an Airbnb listing URL into the app.<br>
-    The app responds with a smart answer explaining its decision.
+cd smartbnb/frontend && npm ci && npm run build
+cd ../backend && npm ci && npm start                       # http://localhost:3000
+```
 
-2. <b>Visualization</b>
-
-    Users can compare prices across neighborhoods.<br>
-    Users can explore seasonal trends in pricing.
-    Users can view price distributions on an interactive map.<br>
-
-3. <b>Data Management</b>
-
-    The system stores Airbnb listing data from InsideAirbnb.com in a cloud 
-database.<br>
-    Data is refreshed from the latest InsideAirbnb snapshot with 
-`data/db/load_data.py --fetch`.<br>
-    The system ensures data consistency and reliability.
-4. <b>Web Application</b>
-
-    The app provides a clean, intuitive web interface.
-    The app is accessible across devices (desktop and mobile).
-
-
-## Non Functional Requirements
-
-1. <b>Performance </b>
-
-    The app should return an analysis of a listing in under 3 seconds.<br>
-    Visualizations should load smoothly.
-
-2. <b>Availability & Reliability</b>
-
-    The web app should have an uptime of at least 90%.<br>
-    The data pipeline must recover automatically if an extraction fails.
-
-3. <b>Data Quality</b>
-
-    The system must ensure that the Airbnb data is up-to-date.<br>
-    Data errors, duplicates, or missing values should be handled 
-gracefully.
-
-4. <b>Portability</b>
-
-    The entire system (database, pipeline, and web app) must be able to 
-run 100% locally
-
-
-## Documentation
-
-- [Running and deploying](docs/deployment.md): local setup with Node.js or
-  Docker, and the production setup
-- [API](docs/api.md): the REST endpoints
-- [CI and deployment](docs/ci.md): workflows and how a change reaches
-  production
-- [Operations](docs/operations.md): keep-alive, uptime checks, alerts and
-  database backups
-- [Data loading](data/db/README.md) and [Cloudflare Workers](cloudflare/README.md)
-
+The AI analysis is optional: without an AI key the score is shown alone. Tests
+run with `npm test` in `smartbnb/backend` and need no database. Docker and
+production setup: [docs/deployment.md](docs/deployment.md).
 
 ## Data
 
 Listing data comes from [Inside Airbnb](https://insideairbnb.com/) and is
-licensed under the
-[Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/).
-The snapshots in `data/*.csv.gz` are the Inside Airbnb
-Vaud `listings.csv` files of 2024-2025, stored compressed.
+licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The 2024-2025
+snapshots in `data/*.csv.gz` are kept in the repository because Inside Airbnb
+only publishes the last twelve months; newer ones are downloaded by
+`python data/db/load_data.py --fetch`.
 
+Since June 2026 the Inside Airbnb snapshots for Vaud no longer contain usable
+prices, so the prices shown date from May 2026 at the latest. Each result
+shows the date its price was seen.
+
+## Documentation
+
+- [Running and deploying](docs/deployment.md)
+- [API](docs/api.md)
+- [CI and deployment](docs/ci.md)
+- [Operations](docs/operations.md): keep-alive, uptime checks, alerts, backups
+- [Data loading](data/db/README.md) and [Cloudflare Workers](cloudflare/README.md)
+
+## Credits
+
+SmartBnB started in 2025 as a student project at HEIG-VD by Adam Gruber
+([@AdamoElProfesor](https://github.com/AdamoElProfesor)), Axel Pittet
+([@Axwells](https://github.com/Axwells)) and
+[@CestPolo](https://github.com/CestPolo). It is now maintained by Adam Gruber.
 
 ## License
 
