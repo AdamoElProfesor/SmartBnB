@@ -50,11 +50,27 @@ jobs:
           echo "Tables in dump: $(grep -c ' TABLE DATA ' toc.txt)"
           echo "### Backup ${FILE}: ${SIZE} bytes, $(grep -c ' TABLE DATA ' toc.txt) tables" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload the dump
+      # Artifacts of a public repository can be downloaded by anyone, so the
+      # dump is encrypted before upload (restore steps: OPERATIONS.md).
+      - name: Encrypt the dump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BACKUP_PASSPHRASE}" ]; then
+            echo "::error::The BACKUP_PASSPHRASE secret is not set"
+            exit 1
+          fi
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 \
+            --output "backup/${FILE}.gpg" "backup/${FILE}" <<< "${BACKUP_PASSPHRASE}"
+          rm "backup/${FILE}"
+
+      - name: Upload the encrypted dump
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.FILE }}
-          path: backup/${{ env.FILE }}
+          name: ${{ env.FILE }}.gpg
+          path: backup/${{ env.FILE }}.gpg
           retention-days: 30
           compression-level: 0 # already compressed by pg_dump
           if-no-files-found: error
