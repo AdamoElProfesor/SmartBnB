@@ -53,8 +53,7 @@ async function getAnalysis(input) {
 /**
  * Compute SmartBnB score from an Airbnb URL
  * @param {string} airbnbUrl
- * @param {{ includeBreakdown: boolean }} options
- * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, smart_score_breakdown?: object }>}
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, listing?: object, analysis?: object }>}
  */
 exports.computeFromUrl = async (airbnbUrl) => {
   const id = urlResolver.extractListingId(String(airbnbUrl || ""));
