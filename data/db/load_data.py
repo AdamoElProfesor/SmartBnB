@@ -1,7 +1,8 @@
 """Load InsideAirbnb snapshots of Vaud into the SmartBnB database.
 
-Snapshots are read from data/*.csv.gz (history kept in git) and
-data/cache/*.csv.gz (downloaded, not in git). By default only scrapes that
+Snapshots are read from data/*.csv.gz, all kept in git: InsideAirbnb only
+publishes the last 12 months, so the repository is the archive. Downloaded
+snapshots are saved there too, to be committed. By default only scrapes that
 are not in the database yet are added, so the history survives even after
 InsideAirbnb stops publishing old months. Then, in the same transaction:
   - listings and amenities are refreshed from each listing's latest scrape
@@ -30,7 +31,6 @@ import psycopg
 
 HERE = Path(__file__).resolve().parent
 DATA_DIR = HERE.parent
-CACHE_DIR = DATA_DIR / "cache"
 
 INSIDE_AIRBNB_PAGE = "https://insideairbnb.com/get-the-data/"
 SNAPSHOT_URL = "https://data.insideairbnb.com/switzerland/vd/vaud/{date}/data/listings.csv.gz"
@@ -107,10 +107,9 @@ def latest_snapshot_date():
 
 
 def fetch_snapshots(dates):
-    CACHE_DIR.mkdir(exist_ok=True)
     for date in dates:
-        dest = CACHE_DIR / f"{date}.csv.gz"
-        if dest.exists() or (DATA_DIR / f"{date}.csv.gz").exists():
+        dest = DATA_DIR / f"{date}.csv.gz"
+        if dest.exists():
             print(f"  {date}: already on disk")
             continue
         dest.write_bytes(http_get(SNAPSHOT_URL.format(date=date)))
@@ -118,9 +117,9 @@ def fetch_snapshots(dates):
 
 
 def read_csvs():
-    files = sorted(glob.glob(str(DATA_DIR / "*.csv.gz")) + glob.glob(str(CACHE_DIR / "*.csv.gz")))
+    files = sorted(glob.glob(str(DATA_DIR / "*.csv.gz")))
     if not files:
-        raise SystemExit(f"No snapshot found in {DATA_DIR} or {CACHE_DIR}")
+        raise SystemExit(f"No snapshot found in {DATA_DIR}")
     wanted = set(LISTING_COLS) | set(SNAPSHOT_COLS) | {"id", "amenities"}
     frames = []
     for f in files:
