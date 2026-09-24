@@ -6,7 +6,7 @@ and GitHub Actions.
 
 ## Keep-alive
 
-The Cloudflare Worker `smartbnb-keepalive` ([cloudflare/keepalive](cloudflare/keepalive))
+The Cloudflare Worker `smartbnb-keepalive` ([cloudflare/keepalive](../cloudflare/keepalive))
 calls `GET /api/histogram` every 10 minutes through a Cron Trigger. That keeps:
 
 - the Render free service awake (it sleeps after about 15 minutes idle, and a
@@ -17,7 +17,7 @@ Logs: Cloudflare dashboard, Workers & Pages, `smartbnb-keepalive`, Logs.
 
 ## Uptime checks and alerts
 
-[.github/workflows/uptime.yml](.github/workflows/uptime.yml) runs every 30
+[.github/workflows/uptime.yml](../.github/workflows/uptime.yml) runs every 30
 minutes (and on demand from the Actions tab). It checks that:
 
 - `https://www.smartbnb.ch/` answers 200 and contains the app title;
@@ -34,7 +34,7 @@ Actions tab if that happens.
 
 ## Database backups
 
-[.github/workflows/backup.yml](.github/workflows/backup.yml) runs every day at
+[.github/workflows/backup.yml](../.github/workflows/backup.yml) runs every day at
 03:17 UTC (and on demand). It runs `pg_dump` 17 from the official `postgres:17`
 image on the `public` schema, in custom format with maximum compression, checks
 that the dump is readable with `pg_restore --list`, encrypts it with GPG

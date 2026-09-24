@@ -1,7 +1,7 @@
 # Cloudflare Workers
 
 Three small Workers run around the Render service. See also
-[OPERATIONS.md](../OPERATIONS.md) for monitoring and backups.
+[docs/operations.md](../docs/operations.md) for monitoring and backups.
 
 ## `ai/`: open-weights AI endpoint
 
