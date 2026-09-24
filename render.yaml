@@ -5,7 +5,8 @@ services:
     plan: free
     region: frankfurt
     dockerfilePath: ./smartbnb/Dockerfile
-    autoDeploy: false
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/health
     previewsEnabled: false
     buildFilter:
       paths:
