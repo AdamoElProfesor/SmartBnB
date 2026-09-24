@@ -18,11 +18,11 @@ function securityHeaders() {
       useDefaults: false,
       directives: {
         "default-src": ["'self'"],
-        "script-src": ["'self'"],
+        "script-src": ["'self'", "https://static.cloudflareinsights.com"],
         "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
         "img-src": ["'self'", "data:", "https://tile.openstreetmap.org"],
-        "connect-src": ["'self'"],
+        "connect-src": ["'self'", "https://cloudflareinsights.com"],
         "frame-src": ["https://www.youtube-nocookie.com"],
         "media-src": ["'self'"],
         "object-src": ["'none'"],
