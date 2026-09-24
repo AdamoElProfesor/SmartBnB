@@ -90,10 +90,16 @@ gracefully.
 run 100% locally
 
 
-## Operations
+## Documentation
 
-Keep-alive, uptime checks, alerts, daily database backups (and how to restore
-them) are described in [OPERATIONS.md](OPERATIONS.md).
+- [Running and deploying](docs/deployment.md): local setup with Node.js or
+  Docker, and the production setup
+- [API](docs/api.md): the REST endpoints
+- [CI and deployment](docs/ci.md): workflows and how a change reaches
+  production
+- [Operations](docs/operations.md): keep-alive, uptime checks, alerts and
+  database backups
+- [Data loading](data/db/README.md) and [Cloudflare Workers](cloudflare/README.md)
 
 
 ## Data

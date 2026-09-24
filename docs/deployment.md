@@ -7,7 +7,7 @@ database loaded with the Inside Airbnb data.
 ## 1) Database
 
 Create the schema and load the data as described in
-[data/db/README.md](data/db/README.md) (`schema.sql`, then
+[data/db/README.md](../data/db/README.md) (`schema.sql`, then
 `python load_data.py`). A local Postgres or a free Supabase project both work.
 
 ## 2) Environment
@@ -57,7 +57,7 @@ Then open http://localhost:3000.
   once the GitHub checks pass. Health check: `GET /api/health`.
 - **Cloudflare** serves `smartbnb.ch` through the relay Worker, runs the
   open-weights AI endpoint and the keep-alive Worker: see
-  [cloudflare/README.md](cloudflare/README.md).
+  [cloudflare/README.md](../cloudflare/README.md).
 - **Supabase** hosts the Postgres database.
-- Monitoring and backups: [OPERATIONS.md](OPERATIONS.md). CI:
-  [deployment_instructions.md](deployment_instructions.md).
+- Monitoring and backups: [operations.md](operations.md). CI:
+  [ci.md](ci.md).
