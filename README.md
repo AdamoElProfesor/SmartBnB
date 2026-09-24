@@ -94,3 +94,18 @@ run 100% locally
 
 Keep-alive, uptime checks, alerts, daily database backups (and how to restore
 them) are described in [OPERATIONS.md](OPERATIONS.md).
+
+
+## Data
+
+Listing data comes from [Inside Airbnb](https://insideairbnb.com/) and is
+licensed under the
+[Creative Commons Attribution 4.0 International License](https://creativecommons.org/licenses/by/4.0/).
+The snapshots in `data/*.csv.gz` are the Inside Airbnb
+Vaud `listings.csv` files of 2024-2025, stored compressed.
+
+
+## License
+
+The code is released under the [MIT License](LICENSE). The data keeps its own
+license, see [Data](#data).
