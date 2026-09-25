@@ -75,17 +75,17 @@ function buildProConsPrompt({ listing, smartScore }) {
     missing_amenities: listing.missing_amenities || [],
   };
   return [
-    "Tu es un analyste de locations courtes durée en Suisse dans le canton de Vaud.",
-    "A partir du JSON ci-dessous, renvoie STRICTEMENT un JSON (aucun texte hors JSON) avec ce format:",
+    "You are a short-term rental analyst for the canton of Vaud, Switzerland.",
+    "Using ONLY the JSON below, return STRICTLY a JSON object (no text outside the JSON) in this format:",
     `{
-      "pros": ["..."],     // 2–4 points positifs concrets
-      "cons": ["..."],     // 2–4 points négatifs précis
-      "summary": "...",    // 1–2 phrases, objectif
+      "pros": ["..."],     // 2-4 concrete strengths
+      "cons": ["..."],     // 2-4 specific points to watch out for
+      "summary": "...",    // 1-2 sentences, objective
     }`,
-    "Règles:",
-    "- Baser l'analyse UNIQUEMENT sur les données fournies. Ne pas inventer d'équipements.",
-    "- Utiliser la médiane/moyenne du quartier pour juger le prix.",
-    "- Ton style est concis, clair, en français (Suisse).",
+    "Rules:",
+    "- Base the analysis ONLY on the data provided. Do not invent amenities.",
+    "- Use the neighbourhood median/average to judge the price.",
+    "- Write in English, in a concise and clear style.",
     "",
     "DATA:",
     JSON.stringify(playload, null, 2),
@@ -167,7 +167,7 @@ async function chatProsCons(input) {
       response_format: { type: "json_object" },
       temperature: 0.2,
       messages: [
-        { role: "system", content: "Tu retournes UNIQUEMENT du JSON valide." },
+        { role: "system", content: "You return ONLY valid JSON." },
         { role: "user", content: prompt },
       ],
     });
