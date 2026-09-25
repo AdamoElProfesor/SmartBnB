@@ -174,6 +174,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 520px) {
+  .map-canvas { height: 60vh; }
   .legend { grid-template-columns: auto 90px auto; left: 10px; bottom: 10px; }
 }
 </style>

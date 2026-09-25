@@ -35,7 +35,7 @@
       </div>
 
       <!-- Result -->
-      <article v-if="result" class="panel result" aria-live="polite" :style="{ '--accent': verdict.color }">
+      <article v-if="result" ref="resultEl" class="panel result" aria-live="polite" :style="{ '--accent': verdict.color }">
         <header class="res-head">
           <h2 class="res-title">{{ listing.name }}</h2>
           <p class="res-sub">
@@ -140,7 +140,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { apiPost } from "../lib/api";
 import { formatCHF, isNum, amenityLabel, roomTypeLabel } from "../lib/format";
 import DemoVideo from "./DemoVideo.vue";
@@ -158,6 +158,7 @@ const loading = ref(false);
 const error = ref("");
 const result = ref(null);
 const shownScore = ref(0);
+const resultEl = ref(null);
 
 const listing = computed(() => result.value?.listing || {});
 const pros = computed(() => result.value?.analysis?.pros || []);
@@ -192,6 +193,7 @@ const price = computed(() => {
 
 // One orchestrated moment: the score counts up when a result arrives.
 watch(result, (r) => {
+  if (!r) return (shownScore.value = 0);
   const target = Number(r?.smart_score ?? 0);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) return (shownScore.value = target);
@@ -204,15 +206,26 @@ watch(result, (r) => {
   requestAnimationFrame(step);
 });
 
+// In the one-column layout the result card starts below the fold: bring it into view
+async function scrollToResult() {
+  if (!window.matchMedia("(max-width: 960px)").matches) return;
+  await nextTick();
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  resultEl.value?.scrollIntoView({ behavior: reduce ? "instant" : "smooth", block: "start" });
+}
+
 async function evaluate(fromUrl) {
   if (fromUrl) url.value = fromUrl;
   if (!url.value) return;
   loading.value = true;
   error.value = "";
+  // Hide the previous listing so its score is never read as the answer to this link
+  result.value = null;
   try {
     const data = await apiPost("/score", { airbnbUrl: url.value });
     if (!data?.ok) throw new Error("Evaluation failed");
     result.value = data;
+    scrollToResult();
   } catch (e) {
     console.error(e);
     error.value =
