@@ -109,6 +109,15 @@ button { font-family: inherit; }
 
 /* Leaflet */
 .muted-tiles { filter: grayscale(75%) contrast(92%) brightness(104%); }
+.map-touch-hint {
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px -10px rgba(28, 43, 42, 0.4);
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  pointer-events: none;
+}
 .leaflet-container { font-family: var(--font); background: var(--paper-2); }
 .leaflet-control-attribution { font-size: 11px; }
 
