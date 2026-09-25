@@ -54,7 +54,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
-import { createBaseMap, L } from "../lib/leafletMap";
+import { createBaseMap, fitToBounds, L } from "../lib/leafletMap";
 import { apiGet } from "../lib/api";
 import { formatCHF, isNum, roomTypeLabel } from "../lib/format";
 
@@ -146,7 +146,7 @@ function drawMarkers(list) {
     marker.on("mouseout", () => handleHover(null));
     marker.on("click", () => window.open(listingUrl(item.id), "_blank", "noopener"));
   });
-  if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+  fitToBounds(map, bounds, { padding: [40, 40], maxZoom: 12 });
 }
 function handleHover(id) {
   hoveredId.value = id;
