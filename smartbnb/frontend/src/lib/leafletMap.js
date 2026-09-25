@@ -21,6 +21,9 @@ export function createBaseMap(el, { zoom = 9 } = {}) {
     zoom,
     zoomControl: true,
     scrollWheelZoom: false,
+    // On phones a one-finger swipe must scroll the page, not pan the map.
+    // Two-finger gestures still pan and zoom through touchZoom.
+    dragging: !L.Browser.mobile,
     preferCanvas: true,
     // Quarter-step zoom so fitBounds frames Vaud tightly on narrow screens
     zoomSnap: 0.25,
@@ -30,7 +33,18 @@ export function createBaseMap(el, { zoom = 9 } = {}) {
     className: "muted-tiles",
     maxZoom: 19,
   }).addTo(map);
+  if (L.Browser.mobile) addTouchHint(map);
   return map;
+}
+
+function addTouchHint(map) {
+  const hint = L.control({ position: "topright" });
+  hint.onAdd = () => {
+    const el = L.DomUtil.create("div", "map-touch-hint");
+    el.textContent = "Use two fingers to move the map";
+    return el;
+  };
+  hint.addTo(map);
 }
 
 /**
