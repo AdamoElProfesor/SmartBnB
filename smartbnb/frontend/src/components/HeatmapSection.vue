@@ -27,7 +27,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { createBaseMap, L } from "../lib/leafletMap";
+import { createBaseMap, fitToBounds, L } from "../lib/leafletMap";
 import { apiGet } from "../lib/api";
 import { formatCHF, priceColor, PRICE_GRADIENT } from "../lib/format";
 import "leaflet.markercluster";
@@ -98,7 +98,7 @@ onMounted(async () => {
     await fetchPoints();
 
     const bounds = L.latLngBounds(points.value.map((p) => [p.lat, p.lng]));
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [20, 20] });
+    fitToBounds(map, bounds, { padding: [20, 20], maxZoom: 11 });
 
     const clusters = L.markerClusterGroup({
       maxClusterRadius: 70,
