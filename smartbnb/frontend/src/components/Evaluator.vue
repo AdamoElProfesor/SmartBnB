@@ -192,6 +192,7 @@ const price = computed(() => {
 
 // One orchestrated moment: the score counts up when a result arrives.
 watch(result, (r) => {
+  if (!r) return (shownScore.value = 0);
   const target = Number(r?.smart_score ?? 0);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) return (shownScore.value = target);
@@ -209,6 +210,8 @@ async function evaluate(fromUrl) {
   if (!url.value) return;
   loading.value = true;
   error.value = "";
+  // Hide the previous listing so its score is never read as the answer to this link
+  result.value = null;
   try {
     const data = await apiPost("/score", { airbnbUrl: url.value });
     if (!data?.ok) throw new Error("Evaluation failed");
