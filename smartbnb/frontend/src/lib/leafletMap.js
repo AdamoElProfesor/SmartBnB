@@ -22,6 +22,8 @@ export function createBaseMap(el, { zoom = 9 } = {}) {
     zoomControl: true,
     scrollWheelZoom: false,
     preferCanvas: true,
+    // Quarter-step zoom so fitBounds frames Vaud tightly on narrow screens
+    zoomSnap: 0.25,
   });
   L.tileLayer(TILES_URL, {
     attribution: ATTRIBUTION,
