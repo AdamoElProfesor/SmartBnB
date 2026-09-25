@@ -40,7 +40,7 @@
           <h2 class="res-title">{{ listing.name }}</h2>
           <p class="res-sub">
             {{ capitalize(roomTypeLabel(listing.room_type)) }} in {{ listing.neighborhood }},
-            {{ listing.accommodates }} guests
+            {{ listing.accommodates }} {{ listing.accommodates === 1 ? 'guest' : 'guests' }}
           </p>
         </header>
 
