@@ -151,6 +151,21 @@ describe("url-resolver.resolveListingId", () => {
     expect(id).toBe("9");
   });
 
+  test("never requests an airbnb.<tld> domain that is not Airbnb's", async () => {
+    const fetchImpl = jest.fn();
+    for (const link of ["https://airbnb.lol/l/AbCdEf12", "https://x.airbnb.co.xx/l/AbCdEf12", "https://www.airbnb.dev/h/test"]) {
+      await expect(resolveListingId(link, { fetchImpl })).resolves.toEqual({ id: null, shortLink: true });
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test("does not follow a redirect to an airbnb.<tld> domain that is not Airbnb's", async () => {
+    const fetchImpl = fakeFetch({ "https://abnb.me/x1": redirect("https://airbnb.lol/l/abc") });
+    const { id } = await resolveListingId("https://abnb.me/x1", { fetchImpl });
+    expect(id).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   test("a redirect to a non-Airbnb host is never followed", async () => {
     const fetchImpl = fakeFetch({ "https://abnb.me/x1": redirect("http://169.254.169.254/latest/meta-data") });
     await expect(resolveListingId("https://abnb.me/x1", { fetchImpl })).resolves.toEqual({
