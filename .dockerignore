@@ -1,0 +1,15 @@
+# Keep secrets, local installs and unused folders out of the build context
+# (the Dockerfile copies smartbnb/ after npm ci, so a local node_modules or
+# .env would otherwise end up in the image)
+**/.env
+**/.env.*
+**/.dev.vars
+**/node_modules
+**/dist
+**/test
+**/.DS_Store
+.git
+.github
+cloudflare
+data
+docs

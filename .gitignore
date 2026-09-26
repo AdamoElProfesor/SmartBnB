@@ -2,6 +2,23 @@ node_modules
 
 # Secrets
 .env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+*.pem
+*.key
+
+# Database dumps and backups
+*.dump
+*.part
+*.gpg
+*.sql.gz
+backup/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # Python
 .venv
