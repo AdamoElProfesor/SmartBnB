@@ -34,12 +34,14 @@ jobs:
             smartbnb/frontend/package-lock.json
             smartbnb/backend/package-lock.json
 
-      - name: Build frontend
+      - name: Lint, test and build frontend
         working-directory: smartbnb/frontend
         env:
           VITE_API_BASE: /api
         run: |
           npm ci
+          npm run lint
+          npm test
           npm run build
 
       - name: Test backend

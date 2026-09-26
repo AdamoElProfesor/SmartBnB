@@ -30,6 +30,7 @@ import { ref, onMounted, computed } from "vue";
 import { createBaseMap, fitToBounds, L } from "../lib/leafletMap";
 import { apiGet } from "../lib/api";
 import { formatCHF, priceColor, PRICE_GRADIENT } from "../lib/format";
+import { median } from "../lib/stats";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 
@@ -51,13 +52,6 @@ function tFromPrice(p) {
   const max = priceMax.value ?? 1;
   if (!(max > min)) return 0.5;
   return (p - min) / (max - min);
-}
-function median(nums) {
-  const a = nums.slice().sort((x, y) => x - y);
-  const n = a.length;
-  if (!n) return 0;
-  const m = Math.floor(n / 2);
-  return n % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
 function clusterIcon(cluster) {
