@@ -232,7 +232,9 @@ async function evaluate(fromUrl) {
       e.status === 404
         ? "This listing isn't in our data. SmartBnB only covers listings in canton Vaud that InsideAirbnb has recorded."
         : e.status === 400
-        ? "That link doesn't look like an Airbnb listing. It should contain /rooms/ followed by a number."
+        ? "That link doesn't look like an Airbnb listing. Paste the link shared from the Airbnb app, or one that contains /rooms/ followed by a number."
+        : e.status === 422
+        ? "We couldn't open this share link. Open it in your browser and copy the address from there: it should contain /rooms/ followed by a number."
         : e.status === 429
         ? "You've checked a lot of listings in a short time. Wait a little and try again."
         : "The check didn't go through. Try again in a moment.";
