@@ -1,0 +1,37 @@
+# Weekly update PRs for every dependency source, including the GitHub
+# Actions and Docker images pinned by SHA / digest (Dependabot keeps the
+# version comment next to the SHA in sync).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /smartbnb/backend
+    schedule:
+      interval: weekly
+    groups:
+      backend:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /smartbnb/frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directories:
+      - /data/db
+      - /data/prices
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /smartbnb
+    schedule:
+      interval: weekly

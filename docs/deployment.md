@@ -21,6 +21,18 @@ cp smartbnb/backend/.env.example smartbnb/backend/.env
 Set at least `DATABASE_URL`. The AI analysis is optional: without `AI_*` or
 `OPENAI_API_KEY` the score is shown without it.
 
+In production (Render), also set:
+
+- `RELAY_SECRET`: same value as the relay Worker secret. Without it every
+  visitor coming through `smartbnb.ch` shares one rate limit bucket (see
+  [cloudflare/README.md](../cloudflare/README.md)).
+- `DATABASE_CA_CERT`: the Supabase root certificate, so the backend verifies
+  it is talking to the real database.
+- `DATABASE_URL` with the `smartbnb_app` role rather than `postgres` (see
+  "Least-privilege roles" in [data/db/README.md](../data/db/README.md)).
+
+The backend logs a warning at startup when the first two are missing.
+
 ## 3) Run with Node.js
 
 Node.js 22 is required.
