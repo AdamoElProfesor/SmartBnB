@@ -4,12 +4,18 @@ const { all, one } = require("../../config/db_sql");
 // this many nights is a long-term rental, not a holiday stay.
 const LONG_STAY_MIN_NIGHTS = 28;
 
+// "Best rated" ranks by a Bayesian average: each rating is pulled towards the
+// mean rating of the area, as if the listing had this many extra reviews at
+// that mean. A 5.0 from 3 guests then ranks below a 4.97 from 400 guests.
+const RATING_PRIOR_REVIEWS = 40;
+
 /**
  * Search listings still active in the latest scrape, with optional filters/sort.
  * The price ranking leaves out long stays: their monthly rent spread per night
- * is not comparable with a holiday price.
+ * is not comparable with a holiday price. The rating ranking uses a Bayesian
+ * average (RATING_PRIOR_REVIEWS).
  * @param {{ ratingMin?: number, sort?: 'price_asc'|'most_booked'|'rating_desc'|'listing_id_asc'|string, limit?: number }} params
- * @returns {Promise<Array<{ id: string, name: string, neighborhood: string, latitude: number, longitude: number, room_type: string, accommodates: number, price: number|null, rating: number|null, number_of_reviews_ltm: number|null, minimum_nights: number|null, long_stay: boolean, host_is_superhost: boolean }>>}
+ * @returns {Promise<Array<{ id: string, name: string, neighborhood: string, latitude: number, longitude: number, room_type: string, accommodates: number, price: number|null, rating: number|null, number_of_reviews: number|null, number_of_reviews_ltm: number|null, minimum_nights: number|null, long_stay: boolean, host_is_superhost: boolean }>>}
  */
 exports.search = async ({
   ratingMin = 0,
@@ -33,6 +39,15 @@ exports.search = async ({
         FROM public.airbnb_snapshots s
       ) x
       WHERE x.rn = 1
+    ),
+    -- Mean rating of the listings in the latest scrape: the prior of the
+    -- Bayesian average.
+    prior AS (
+      SELECT AVG(review_scores_rating) AS mean_rating
+      FROM public.airbnb_snapshots
+      WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)
+        AND review_scores_rating IS NOT NULL
+        AND number_of_reviews > 0
     )
     SELECT
       v.id,
@@ -44,6 +59,7 @@ exports.search = async ({
       v.accommodates,
       cp.price,
       l.review_scores_rating     AS rating,
+      l.number_of_reviews,
       l.number_of_reviews_ltm,
       l.minimum_nights,
       COALESCE(l.minimum_nights >= $4, false) AS long_stay,
@@ -51,18 +67,22 @@ exports.search = async ({
     FROM public.airbnb_vaud v
     JOIN latest l ON l.listing_id = v.id
     LEFT JOIN public.current_prices cp ON cp.listing_id = v.id
+    CROSS JOIN prior
     WHERE COALESCE(l.review_scores_rating, 0) >= $1
       AND l.scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)
       AND ($2 <> 'price_asc' OR l.minimum_nights IS NULL OR l.minimum_nights < $4)
     ORDER BY
       CASE WHEN $2 = 'price_asc'   THEN cp.price END ASC  NULLS LAST,
       CASE WHEN $2 = 'most_booked' THEN l.number_of_reviews_ltm END DESC NULLS LAST,
-      CASE WHEN $2 = 'rating_desc' THEN l.review_scores_rating END DESC NULLS LAST,
+      CASE WHEN $2 = 'rating_desc' THEN
+        (COALESCE(l.number_of_reviews, 0) * l.review_scores_rating + $5 * prior.mean_rating)
+        / (COALESCE(l.number_of_reviews, 0) + $5)
+      END DESC NULLS LAST,
       CASE WHEN $2 = 'rating_desc' THEN l.number_of_reviews END DESC NULLS LAST,
       v.id ASC
     LIMIT LEAST($3, 100);
     `,
-    [Number(ratingMin) || 0, String(sort || ""), Number(lim), LONG_STAY_MIN_NIGHTS]
+    [Number(ratingMin) || 0, String(sort || ""), Number(lim), LONG_STAY_MIN_NIGHTS, RATING_PRIOR_REVIEWS]
   );
   return rows;
 };
