@@ -3,7 +3,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Top 10 stays right now</h2>
-        <p>Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb. "Cheapest" only counts stays you can book for less than a month.</p>
+        <p>Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb.</p>
       </div>
 
       <div class="tabs" role="tablist" aria-label="Top 10 lists">
@@ -19,6 +19,7 @@
           {{ t.label }}
         </button>
       </div>
+      <p class="tab-hint">{{ activeHint }}</p>
 
       <div class="top-grid">
         <div class="list-col">
@@ -41,7 +42,10 @@
                     <span v-if="item.longStay" class="stay-badge">{{ minStayLabel(item.minNights) }}</span>
                   </span>
                 </span>
-                <span class="metric">{{ metric(item) }}</span>
+                <span class="metric">
+                  {{ metric(item) }}
+                  <span v-if="activeTab === 'rating' && item.totalReviews != null" class="metric-sub">{{ reviewsLabel(item.totalReviews) }}</span>
+                </span>
               </a>
             </li>
           </ol>
@@ -62,9 +66,9 @@ import { apiGet } from "../lib/api";
 import { formatCHF, isNum, roomTypeLabel } from "../lib/format";
 
 const TABS = [
-  { key: "rating", label: "Best rated" },
-  { key: "price", label: "Cheapest" },
-  { key: "reviews", label: "Most reviewed this year" },
+  { key: "rating", label: "Best rated", hint: "Great ratings from many guests." },
+  { key: "price", label: "Cheapest", hint: "Lowest nightly prices among stays you can book for less than a month." },
+  { key: "reviews", label: "Most reviewed this year", hint: "Most guest reviews over the last 12 months." },
 ];
 
 const mapEl = ref(null);
@@ -78,6 +82,7 @@ const error = ref("");
 const lists = reactive({ rating: [], price: [], reviews: [] });
 const activeTab = ref("rating");
 const currentList = computed(() => lists[activeTab.value]);
+const activeHint = computed(() => TABS.find((t) => t.key === activeTab.value)?.hint ?? "");
 
 const toNumberOrNull = (v) => (isNum(v) ? Number(v) : null);
 const listingUrl = (id) => `https://www.airbnb.ch/rooms/${id}`;
@@ -95,6 +100,8 @@ function minStayLabel(nights) {
   return `Min. ${nights} nights`;
 }
 
+const reviewsLabel = (n) => `${n} review${n === 1 ? "" : "s"}`;
+
 function mapListing(l) {
   return {
     id: l.id,
@@ -104,6 +111,7 @@ function mapListing(l) {
     rating: toNumberOrNull(l.rating),
     price: toNumberOrNull(l.price),
     reviews: toNumberOrNull(l.number_of_reviews_ltm),
+    totalReviews: toNumberOrNull(l.number_of_reviews),
     minNights: toNumberOrNull(l.minimum_nights),
     longStay: l.long_stay === true,
     lat: toNumberOrNull(l.latitude),
@@ -243,7 +251,9 @@ onMounted(async () => {
   font-weight: 600;
   white-space: nowrap;
 }
-.metric { font-weight: 700; white-space: nowrap; }
+.metric { display: grid; justify-items: end; font-weight: 700; white-space: nowrap; }
+.metric-sub { color: var(--ink-2); font-size: 0.8rem; font-weight: 500; }
+.tab-hint { margin: -8px 0 16px; color: var(--ink-2); font-size: 0.9rem; }
 
 .map-col { position: relative; }
 .map {
