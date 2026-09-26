@@ -3,7 +3,8 @@ const service = require("../services/score.service");
 /**
  * Computes SmartBnB score from a posted Airbnb URL and returns JSON
  * Accepts body field: airbnbUrl
- * Responds 400 on invalid URL, 404 if not found
+ * Responds 400 on invalid URL, 404 if not found, 422 when a share link
+ * from the Airbnb app cannot be resolved
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
@@ -20,7 +21,8 @@ async function computeFromUrl(req, res, next) {
     const data = await service.computeFromUrl(airbnbUrl);
 
     if (!data.ok) {
-      const code = data.error === "Listing not found" ? 404 : 400;
+      const code =
+        data.error === "Listing not found" ? 404 : data.error === "Share link could not be resolved" ? 422 : 400;
       return res.status(code).json(data);
     }
 

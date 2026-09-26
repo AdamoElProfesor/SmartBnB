@@ -105,6 +105,22 @@ describe("Score endpoints", () => {
     });
   });
 
+  test("POST /score returns 422 when a share link cannot be resolved", async () => {
+    scoreService.computeFromUrl.mockResolvedValue({
+      ok: false,
+      error: "Share link could not be resolved",
+    });
+
+    const response = await request(app).post("/api/score").send({
+      airbnbUrl: "https://abnb.me/AbCdEf12",
+    });
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      ok: false,
+      error: "Share link could not be resolved",
+    });
+  });
+
   test("POST /score returns 404 if listing not found", async () => {
     scoreService.computeFromUrl.mockResolvedValue({
       ok: false,
