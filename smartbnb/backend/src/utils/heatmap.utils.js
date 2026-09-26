@@ -49,10 +49,12 @@ function computeRange(points, { clipP95 = true } = {}) {
 }
 
 /**
- * Normalizes point weights beetween 0 and 1 using min–max
+ * Normalizes point weights between 0 and 1 using min–max. Prices above
+ * maxUsed (the 95th percentile) are clamped to 1; the real price is kept in
+ * `price` so the map can still show it.
  * @param {Array<{ lat: number, lng: number, weight: number|null }>} points
  * @param {{ min: number|null, maxUsed: number|null }} range
- * @returns {{ points: Array<{ lat: number, lng: number, weight: number }>, normalization: { min: number|null, max: number|null, method: string } }}
+ * @returns {{ points: Array<{ lat: number, lng: number, weight: number, price: number }>, normalization: { min: number|null, max: number|null, method: string } }}
  */
 function applyNormalization(points, { min, maxUsed }) {
   if (!points.length || min == null || maxUsed == null) {
@@ -61,7 +63,8 @@ function applyNormalization(points, { min, maxUsed }) {
   const denom = maxUsed - min || 1;
   const normalized = points.map((p) => ({
     ...p,
-    weight: (p.weight - min) / denom,
+    weight: Math.min(1, Math.max(0, (p.weight - min) / denom)),
+    price: p.weight,
   }));
   return {
     points: normalized,
