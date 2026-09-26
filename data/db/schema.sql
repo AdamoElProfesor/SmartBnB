@@ -2,7 +2,8 @@
 --
 -- Reconstructed from the queries in smartbnb/backend/src/repositories/sql
 -- and data/db/load_data.py. Safe to re-run: it drops and
--- recreates every table except price_observations (collected prices).
+-- recreates every table except price_observations (collected prices) and
+-- etl_runs (the history of the loads).
 
 DROP TABLE IF EXISTS
   public.ai_analyses,
@@ -161,6 +162,29 @@ CREATE TABLE public.ai_analyses (
 );
 
 -- -----------------------------------------------------------------
+-- One row per run of load_data.py (Write-Audit-Publish, see quality.py):
+-- the metrics measured on the loaded data and the result of each quality
+-- check. status: running, success, warning (published with warnings),
+-- blocked (a blocking check failed, rolled back) or failed (crashed).
+-- Never dropped by this script: it is the history of the pipeline.
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.etl_runs (
+  id           bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  started_at   timestamptz NOT NULL DEFAULT now(),
+  finished_at  timestamptz,
+  trigger      text        NOT NULL,
+  mode         text        NOT NULL CHECK (mode IN ('incremental', 'full', 'init')),
+  dry_run      boolean     NOT NULL DEFAULT false,
+  status       text        NOT NULL DEFAULT 'running'
+               CHECK (status IN ('running', 'success', 'warning', 'blocked', 'failed')),
+  new_scrapes  integer,
+  metrics      jsonb,
+  checks       jsonb,
+  error        text
+);
+CREATE INDEX IF NOT EXISTS etl_runs_finished_idx ON public.etl_runs (finished_at DESC);
+
+-- -----------------------------------------------------------------
 -- Legacy staging table from the removed Airflow DAG (raw InsideAirbnb CSV
 -- rows). load_data.py does not use it; kept so existing databases match.
 -- Every column is text.
@@ -214,6 +238,7 @@ ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.raw_airbnb_vaud               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.etl_runs                      ENABLE ROW LEVEL SECURITY;
 
 -- Supabase only: also hide the tables from the anon / authenticated roles
 -- (REST and GraphQL). Skipped on a plain Postgres where they do not exist.
@@ -245,5 +270,28 @@ BEGIN
     DROP POLICY IF EXISTS smartbnb_app_insert ON public.ai_analyses;
     CREATE POLICY smartbnb_app_insert ON public.ai_analyses
       FOR INSERT TO smartbnb_app WITH CHECK (true);
+  END IF;
+
+  -- Loader role (roles.sql): same block as there, keep both in sync
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'smartbnb_loader') THEN
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_loader;
+    GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
+      public.airbnb_vaud, public.airbnb_snapshots, public.airbnb_amenities,
+      public.airbnb_points, public.current_prices,
+      public.neighbourhood_room_type_stats, public.neighbourhood_stats
+      TO smartbnb_loader;
+    GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
+    FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+      EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_read ON public.%I', t);
+      EXECUTE format(
+        'CREATE POLICY smartbnb_loader_read ON public.%I FOR SELECT TO smartbnb_loader USING (true)', t);
+    END LOOP;
+    FOREACH t IN ARRAY ARRAY['airbnb_vaud', 'airbnb_snapshots', 'airbnb_amenities',
+                             'airbnb_points', 'current_prices', 'neighbourhood_room_type_stats',
+                             'neighbourhood_stats', 'etl_runs'] LOOP
+      EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_write ON public.%I', t);
+      EXECUTE format(
+        'CREATE POLICY smartbnb_loader_write ON public.%I FOR ALL TO smartbnb_loader USING (true) WITH CHECK (true)', t);
+    END LOOP;
   END IF;
 END $$;

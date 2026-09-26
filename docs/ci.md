@@ -4,13 +4,14 @@
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `.github/workflows/ci.yml` | pull request to `main`, push to `main` | Frontend lint, tests and build, backend tests, check that `data/*.csv.gz` holds only published columns |
+| `.github/workflows/ci.yml` | pull request to `main`, push to `main`, on demand | Frontend lint, tests and build, backend tests, data pipeline tests, check that `data/*.csv.gz` holds only published columns |
+| `.github/workflows/data-refresh.yml` | every Monday | Loads, audits and publishes the data, commits a new snapshot through a pull request ([operations.md](operations.md#data-refresh)) |
 | `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer |
 | `.github/workflows/backup.yml` | every day | Encrypted `pg_dump` of the database, kept 30 days |
 
 The tests mock the database and the AI, so the checks need no secrets. Only
-the backup uses secrets (`BACKUP_DATABASE_URL`, `BACKUP_PASSPHRASE`, see
-[operations.md](operations.md)).
+the backup (`BACKUP_DATABASE_URL`, `BACKUP_PASSPHRASE`) and the data refresh
+(`LOADER_DATABASE_URL`) use secrets, see [operations.md](operations.md).
 
 ## How a change reaches production
 

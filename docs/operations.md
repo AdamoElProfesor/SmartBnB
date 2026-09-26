@@ -32,6 +32,30 @@ as an outage. No secret is needed.
 GitHub after 60 days without repository activity; re-enable them from the
 Actions tab if that happens.
 
+## Data refresh
+
+[.github/workflows/data-refresh.yml](../.github/workflows/data-refresh.yml)
+runs every Monday at 05:23 UTC (and on demand from the Actions tab):
+
+1. `load_data.py --fetch` downloads the newest Inside Airbnb snapshot if
+   there is one, loads it, recomputes prices and stats (including the prices
+   collected by `data/prices`), audits the result and publishes it only if
+   no blocking check fails (see [Data quality](../data/db/README.md#data-quality)).
+2. A new snapshot file is pushed to a `data/snapshot-<date>` branch, whose
+   pull request is merged once "Build + Tests" passes. A pull request opened
+   with the workflow token does not trigger workflows, so the job starts CI
+   on the branch itself (`workflow_dispatch`).
+
+**Alerts:** the run fails, and GitHub emails the repository owner, when the
+load is blocked, crashes, or is published with warnings (for example data
+older than 45 days). The run summary shows every check. Past runs are in the
+`etl_runs` table.
+
+It connects as `smartbnb_loader` (secret `LOADER_DATABASE_URL`, Supabase
+session pooler), which cannot drop tables or change the collected prices.
+The repository setting "Allow GitHub Actions to create and approve pull
+requests" must stay on for step 2.
+
 ## Database backups
 
 [.github/workflows/backup.yml](../.github/workflows/backup.yml) runs every day at
