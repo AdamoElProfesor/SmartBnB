@@ -7,7 +7,7 @@ and GitHub Actions.
 ## Keep-alive
 
 The Cloudflare Worker `smartbnb-keepalive` ([cloudflare/keepalive](../cloudflare/keepalive))
-calls `GET /api/histogram` every 10 minutes through a Cron Trigger. That keeps:
+calls `GET /api/health` every 10 minutes through a Cron Trigger. That keeps:
 
 - the Render free service awake (it sleeps after about 15 minutes idle, and a
   cold start takes 10 to 60 s);
