@@ -2,7 +2,7 @@
 
 Snapshots are read from data/*.csv.gz, all kept in git so the database can be
 rebuilt from a clone. Downloaded snapshots are saved there too, to be
-committed. By default only scrapes that are not in the database yet are
+committed, with only the columns the loader uses (PUBLISHED_COLS). By default only scrapes that are not in the database yet are
 added, so the history is never lost. Then, in the same transaction:
   - listings and amenities are refreshed from each listing's latest scrape
   - amenity points and neighbourhood stats are recomputed
@@ -13,6 +13,8 @@ Usage:
   python load_data.py --dates 2025-07-04 2025-08-03   # download these first
   python load_data.py --full          # wipe the data tables and reload all
   python load_data.py --init          # recreate schema + seed, then --full
+  python load_data.py --minimize      # drop unused columns from data/*.csv.gz
+  python load_data.py --check         # fail if a file has unused columns
 
 DATABASE_URL is read from the environment or data/db/.env.
 """
@@ -20,7 +22,6 @@ DATABASE_URL is read from the environment or data/db/.env.
 import argparse
 import ast
 import csv
-import glob
 import gzip
 import io
 import os
@@ -38,8 +39,7 @@ INSIDE_AIRBNB_PAGE = "https://insideairbnb.com/get-the-data/"
 SNAPSHOT_URL = "https://data.insideairbnb.com/switzerland/vd/vaud/{date}/data/listings.csv.gz"
 
 LISTING_COLS = [
-    "id", "listing_url", "name", "description", "neighborhood_overview",
-    "picture_url", "host_is_superhost", "neighbourhood_cleansed",
+    "id", "listing_url", "name", "picture_url", "host_is_superhost", "neighbourhood_cleansed",
     "neighbourhood_group_cleansed", "latitude", "longitude", "room_type",
     "accommodates",
 ]
@@ -106,28 +106,69 @@ def http_get(url):
     return body
 
 
-# Columns that identify a host as a person. The loader never uses them, and
-# data/ is public, so they are removed before a new snapshot is saved (data
-# minimisation, GDPR / Swiss nLPD). Host statistics (superhost, response
-# rate, number of listings) are kept.
-HOST_PERSONAL_COLS = {
-    "host_id", "host_url", "host_profile_id", "host_profile_url", "host_name",
-    "host_location", "host_about", "host_thumbnail_url", "host_picture_url",
-    "host_neighbourhood", "host_verifications",
-}
+# The only columns kept in data/*.csv.gz, which is public: the ones this
+# loader reads. It is an allow list rather than a list of columns to remove,
+# so host names, host descriptions, free text written by hosts (which often
+# names them) and any column Inside Airbnb adds later never get published
+# (data minimisation, GDPR / Swiss nLPD).
+PUBLISHED_COLS = frozenset(
+    [*LISTING_COLS, *(c for c in SNAPSHOT_COLS if c != "listing_id"), "amenities"]
+)
 
 
-def strip_personal_columns(csv_bytes):
-    """Returns the CSV without HOST_PERSONAL_COLS, other values untouched."""
+def minimize_csv(csv_bytes):
+    """Returns the CSV with only PUBLISHED_COLS, in their original order and
+    with their values untouched."""
     rows = csv.reader(io.StringIO(csv_bytes.decode("utf-8"), newline=""))
     header = next(rows)
-    keep = [i for i, name in enumerate(header) if name not in HOST_PERSONAL_COLS]
+    keep = [i for i, name in enumerate(header) if name in PUBLISHED_COLS]
     out = io.StringIO(newline="")
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(header[i] for i in keep)
     for row in rows:
-        writer.writerow(row[i] for i in keep if i < len(row))
+        writer.writerow(row[i] if i < len(row) else "" for i in keep)
     return out.getvalue().encode("utf-8")
+
+
+def snapshot_files():
+    files = sorted(DATA_DIR.glob("*.csv.gz"))
+    if not files:
+        raise SystemExit(f"No snapshot found in {DATA_DIR}")
+    return files
+
+
+def extra_columns(path):
+    """Columns of a snapshot file that are not in PUBLISHED_COLS."""
+    with gzip.open(path, "rt", encoding="utf-8", newline="") as f:
+        header = next(csv.reader(f))
+    return [c for c in header if c not in PUBLISHED_COLS]
+
+
+def write_snapshot(dest, csv_bytes):
+    """Writes a minimized snapshot, under a temporary name first so a failure
+    never leaves a broken file that later loads would pick up."""
+    tmp = dest.with_name(dest.name + ".part")
+    tmp.write_bytes(gzip.compress(minimize_csv(csv_bytes), mtime=0))
+    tmp.replace(dest)
+
+
+def minimize_files():
+    for path in snapshot_files():
+        if not extra_columns(path):
+            print(f"  {path.name}: already minimized")
+            continue
+        write_snapshot(path, gzip.decompress(path.read_bytes()))
+        print(f"  {path.name}: minimized")
+
+
+def check_files():
+    bad = {p.name: extra_columns(p) for p in snapshot_files()}
+    bad = {name: cols for name, cols in bad.items() if cols}
+    for name, cols in bad.items():
+        print(f"  {name}: {len(cols)} unpublished columns, e.g. {', '.join(cols[:5])}")
+    if bad:
+        raise SystemExit("Run python data/db/load_data.py --minimize and commit the files")
+    print("  every snapshot holds only published columns")
 
 
 def snapshot_date(value):
@@ -153,30 +194,22 @@ def fetch_snapshots(dates):
             print(f"  {date}: already on disk")
             continue
         body = http_get(SNAPSHOT_URL.format(date=date))
-        # Check the archive is complete before it lands in data/, and write
-        # it under a temporary name first, so a failed or truncated download
-        # never leaves a broken file that later loads would pick up
+        # Check the archive is complete before it lands in data/
         try:
             raw = gzip.decompress(body)
         except (OSError, EOFError) as e:
             raise SystemExit(f"  {date}: download is not a valid gzip file ({e})")
         if not raw.startswith(b"id,"):
             raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
-        tmp = dest.with_name(dest.name + ".part")
-        tmp.write_bytes(gzip.compress(strip_personal_columns(raw), mtime=0))
-        tmp.replace(dest)
+        write_snapshot(dest, raw)
         print(f"  {date}: downloaded")
 
 
 def read_csvs():
-    files = sorted(glob.glob(str(DATA_DIR / "*.csv.gz")))
-    if not files:
-        raise SystemExit(f"No snapshot found in {DATA_DIR}")
-    wanted = set(LISTING_COLS) | set(SNAPSHOT_COLS) | {"id", "amenities"}
     frames = []
-    for f in files:
-        df = pd.read_csv(f, usecols=lambda c: c in wanted, low_memory=False)
-        print(f"  {Path(f).name}: {len(df)} rows")
+    for f in snapshot_files():
+        df = pd.read_csv(f, usecols=lambda c: c in PUBLISHED_COLS, low_memory=False)
+        print(f"  {f.name}: {len(df)} rows")
         frames.append(df)
     df = pd.concat(frames, ignore_index=True)
     df["last_scraped"] = pd.to_datetime(df["last_scraped"], errors="coerce")
@@ -385,7 +418,18 @@ def main():
     parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
     parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
+    parser.add_argument("--minimize", action="store_true", help="drop the unpublished columns from data/*.csv.gz, then stop")
+    parser.add_argument("--check", action="store_true", help="fail if a file in data/ has unpublished columns (no database needed)")
     args = parser.parse_args()
+
+    if args.minimize:
+        print("Minimizing snapshots...")
+        minimize_files()
+        return
+    if args.check:
+        print("Checking snapshots...")
+        check_files()
+        return
 
     dates = list(args.dates)
     if args.fetch:

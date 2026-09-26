@@ -105,8 +105,6 @@ describe("Listings endpoints", () => {
         listing_url: "https://www.airbnb.com/rooms/129558",
         name: "Vos vacances à Lausanne",
         host_is_superhost: false,
-        description: null,
-        neighborhood_overview: null,
         neighborhood: "Lausanne",
         neighborhood_group: "Lausanne",
         room_type: "Private room",
