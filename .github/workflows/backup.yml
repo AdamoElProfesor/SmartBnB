@@ -84,6 +84,8 @@ jobs:
             docker exec restore pg_isready -U postgres -q && break
             sleep 2
           done
+          # The RLS policies in the dump name these roles (data/db/roles.sql)
+          docker exec restore psql -U postgres -q -c "CREATE ROLE smartbnb_app; CREATE ROLE smartbnb_backup;"
           docker cp restore.dump restore:/tmp/restore.dump
           rm restore.dump
           docker exec restore pg_restore -U postgres -d postgres --no-owner --no-privileges /tmp/restore.dump \
