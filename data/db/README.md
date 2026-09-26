@@ -67,7 +67,7 @@ on InsideAirbnb keeping its archives online. `--fetch` and `--dates` save new do
 so commit them after loading. By default only scrapes missing from the
 database are added, so the history is never lost.
 
-This folder is public, so the snapshots only keep the 25 columns the loader
+This folder is public, so the snapshots only keep the 26 columns the loader
 reads (`PUBLISHED_COLS` in `load_data.py`), out of about 90 in an Inside
 Airbnb file (data minimisation). It is an allow list: host names, host
 profiles, the free text written by hosts (descriptions, which often name

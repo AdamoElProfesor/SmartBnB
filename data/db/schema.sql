@@ -46,6 +46,7 @@ CREATE TABLE public.airbnb_snapshots (
   scrape_id                    bigint NOT NULL,
   last_scraped                 date,
   price                        double precision,
+  minimum_nights               integer,
   number_of_reviews            integer,
   number_of_reviews_ltm        integer,
   review_scores_rating         double precision,
