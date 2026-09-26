@@ -83,6 +83,29 @@ describe("AI pros/cons", () => {
     });
   });
 
+  test("caps the reply: max_tokens, at most 4 points, bounded lengths", async () => {
+    const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret" });
+    reply(JSON.stringify({ pros: ["a", "b", "c", "d", "e", "x".repeat(500)], cons: [], summary: "s".repeat(1000) }));
+
+    const out = await ai.chatProsCons(input);
+    expect(mockCreate.mock.calls[0][0].max_tokens).toBe(800);
+    expect(mockCreate.mock.calls[0][0].messages[0].content).toMatch(/untrusted/);
+    expect(out.pros).toEqual(["a", "b", "c", "d"]);
+    expect(out.summary.length).toBe(400);
+  });
+
+  test("stops calling the AI once the daily call limit is reached", async () => {
+    const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret", AI_DAILY_CALL_LIMIT: "2" });
+    reply(JSON.stringify(analysis));
+    jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await ai.chatProsCons(input);
+    await ai.chatProsCons(input);
+    await expect(ai.chatProsCons(input)).resolves.toEqual({ pros: [], cons: [], summary: "" });
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+    delete process.env.AI_DAILY_CALL_LIMIT;
+  });
+
   test("returns an empty analysis when the call fails", async () => {
     const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret" });
     mockCreate.mockRejectedValue(new Error("boom"));

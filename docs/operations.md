@@ -38,17 +38,26 @@ Actions tab if that happens.
 03:17 UTC (and on demand). It runs `pg_dump` 17 from the official `postgres:17`
 image on the `public` schema, in custom format with maximum compression, checks
 that the dump is readable with `pg_restore --list`, encrypts it with GPG
-(AES-256) and uploads it as a workflow artifact kept for **30 days**. Artifacts
-of a public repository can be downloaded by anyone, so the dump is never
-uploaded in clear.
+(AES-256), then proves the encrypted file restores: it decrypts it, restores it
+into an empty Postgres 17 container and compares the row count of every table
+with the source (the run fails if a table is missing or more than 1 % behind).
+The encrypted dump is uploaded as a workflow artifact kept for **30 days**.
+Artifacts of a public repository can be downloaded by anyone, so the dump is
+never uploaded in clear, and anyone can try to guess the passphrase offline:
+it must be long and random (`openssl rand -base64 32`), never a word or phrase.
 
 It needs two repository secrets. `BACKUP_PASSPHRASE` encrypts the dump: keep a
 copy somewhere safe, without it the backups cannot be read.
-`BACKUP_DATABASE_URL` is the Supabase **session pooler** URL (`aws-0-eu-central-2.pooler.supabase.com`, port **5432**, same user
-and password as `DATABASE_URL`, with `?sslmode=require`). The transaction pooler
+`BACKUP_DATABASE_URL` is the Supabase **session pooler** URL (port **5432**,
+with `?sslmode=require`). The transaction pooler
 (port 6543) does not work with `pg_dump`.
 
-A failed backup emails the repository owner, like the uptime check.
+A failed backup emails the repository owner, like the uptime check. A backup
+that does not run at all (for example when GitHub disables the schedule after
+60 days without activity) sends nothing, so the workflow also pings
+`BACKUP_HEALTHCHECK_URL` (optional secret) after each successful run: create a
+free daily check on [healthchecks.io](https://healthchecks.io) with a grace
+period of a few hours, and it emails when a ping is missing.
 
 ### Restore
 
