@@ -2,7 +2,8 @@ const { all } = require("../../config/db_sql");
 
 /**
  * Returns base histogram data: per-region % change of median price over the
- * 12 months before the latest priced scrape (first vs last scrape with prices)
+ * 12 months before the latest priced scrape (first vs last scrape with prices).
+ * Empty when only one scrape has prices: there is nothing to compare.
  * @returns {Promise<Array<{ region: string, pct: number|null }>>}
  */
 exports.getHistogramBase = async () => {
@@ -39,6 +40,7 @@ exports.getHistogramBase = async () => {
       FROM bounds b
       JOIN agg a_min ON a_min.month_bucket = b.m_min
       JOIN agg a_max ON a_max.month_bucket = b.m_max AND a_max.region = a_min.region
+      WHERE b.m_min < b.m_max
     )
     SELECT
       region,
