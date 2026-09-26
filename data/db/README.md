@@ -7,6 +7,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `schema.sql` | Creates all tables (drops them first) |
 | `seed.sql` | The 10 amenity categories and their score weights |
 | `load_data.py` | Loads every CSV in `data/` and recomputes the stats tables |
+| `roles.sql` | Least-privilege roles for the backend and the backup (see below) |
 
 ## Tables
 
@@ -66,6 +67,12 @@ on InsideAirbnb keeping its archives online. `--fetch` and `--dates` save new do
 so commit them after loading. By default only scrapes missing from the
 database are added, so the history is never lost.
 
+Before a download is saved, the columns that identify a host as a person
+(`host_name`, `host_about`, `host_id`, profile URLs and pictures, location...,
+see `HOST_PERSONAL_COLS`) are removed: the loader never uses them and this
+folder is public (data minimisation). Snapshots saved before September 2026
+still contain them.
+
 Prices below 5 CHF are treated as missing: the Swiss scrapes since June 2026
 ship a broken price column. `current_prices` holds each listing's newest valid
 price, from the snapshots or from the monthly price collection in
@@ -76,3 +83,27 @@ price per listing.
 
 Put the same `DATABASE_URL` in `smartbnb/backend/.env`. SSL is enabled
 automatically for remote hosts and disabled for `localhost`.
+
+## Least-privilege roles
+
+`schema.sql` enables row level security with no policy, so only the owner
+(`postgres`) sees any row. Connecting the backend and the backup as `postgres`
+works, but then a leaked credential can drop every table, including
+`price_observations`, which cannot be rebuilt. `roles.sql` creates two roles
+that can only do what their job needs:
+
+| Role | Used by | Rights |
+| --- | --- | --- |
+| `smartbnb_app` | backend (Render `DATABASE_URL`) | read every table, insert into `ai_analyses` |
+| `smartbnb_backup` | `pg_dump` (GitHub secret `BACKUP_DATABASE_URL`) | read every table and sequence |
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -v app_password="$(openssl rand -hex 32)" \
+  -v backup_password="$(openssl rand -hex 32)" \
+  -f data/db/roles.sql
+```
+
+Run it once: `schema.sql` (and `load_data.py --init`) gives the grants and
+policies back whenever it recreates the tables. On the Supabase pooler the user name is `<role>.<project ref>`.
+Keep `postgres` for `schema.sql`, `load_data.py` and `scrape_prices.py`.

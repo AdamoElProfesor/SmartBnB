@@ -39,7 +39,7 @@
         <header class="res-head">
           <h2 class="res-title">{{ listing.name }}</h2>
           <p class="res-sub">
-            {{ capitalize(roomTypeLabel(listing.room_type)) }} in {{ listing.neighborhood }},
+            {{ capitalize(roomTypeLabel(listing.room_type)) }} in {{ listing.neighborhood || "Vaud" }},
             {{ listing.accommodates }} {{ listing.accommodates === 1 ? 'guest' : 'guests' }}
           </p>
         </header>
@@ -153,6 +153,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { apiPost } from "../lib/api";
 import { formatCHF, isNum, amenityLabel, roomTypeLabel } from "../lib/format";
+import { priceComparison, scoreErrorMessage, verdictFor } from "../lib/score";
 import DemoVideo from "./DemoVideo.vue";
 
 const EXAMPLE_URL = "https://www.airbnb.ch/rooms/53584592";
@@ -181,26 +182,8 @@ const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const formatDate = (d) =>
   new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-const verdict = computed(() => {
-  const s = Number(result.value?.smart_score ?? 0);
-  if (s >= 70) return { word: "Worth booking", note: "Better value than most comparable stays.", color: "var(--good)" };
-  if (s >= 50) return { word: "Fair deal", note: "In line with what the area offers.", color: "var(--mid)" };
-  return { word: "Look around", note: "Similar stays nearby offer more for the money.", color: "var(--bad)" };
-});
-
-const price = computed(() => {
-  const p = Number(listing.value.price);
-  const m = Number(listing.value.median_price);
-  if (!isNum(listing.value.price) || !isNum(listing.value.median_price) || m <= 0) return null;
-  const max = Math.max(p, m) * 1.6;
-  const diff = Math.round(((p - m) / m) * 100);
-  const where = `for a ${roomTypeLabel(listing.value.room_type)} in ${listing.value.neighborhood}`;
-  const sentence =
-    Math.abs(diff) < 3
-      ? `right at the median ${where}.`
-      : `${Math.abs(diff)}% ${diff < 0 ? "below" : "above"} the median ${where}.`;
-  return { medianPos: (m / max) * 100, listingPos: Math.min(100, (p / max) * 100), sentence };
-});
+const verdict = computed(() => verdictFor(result.value?.smart_score));
+const price = computed(() => priceComparison(listing.value));
 
 // One orchestrated moment: the score counts up when a result arrives.
 watch(result, (r) => {
@@ -289,16 +272,7 @@ async function evaluate(fromUrl, { updateAddress = true } = {}) {
     console.error(e);
     // The address must not keep pointing to a listing that is no longer shown
     if (updateAddress && listingFromAddress()) history.pushState(null, "", window.location.pathname);
-    error.value =
-      e.status === 404
-        ? "This listing isn't in our data. SmartBnB only covers listings in canton Vaud that InsideAirbnb has recorded."
-        : e.status === 400
-        ? "That link doesn't look like an Airbnb listing. Paste the link shared from the Airbnb app, or one that contains /rooms/ followed by a number."
-        : e.status === 422
-        ? "We couldn't open this share link. Open it in your browser and copy the address from there: it should contain /rooms/ followed by a number."
-        : e.status === 429
-        ? "You've checked a lot of listings in a short time. Wait a little and try again."
-        : "The check didn't go through. Try again in a moment.";
+    error.value = scoreErrorMessage(e.status);
   } finally {
     loading.value = false;
   }

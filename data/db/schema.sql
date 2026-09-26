@@ -225,3 +225,26 @@ BEGIN
     REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
   END IF;
 END $$;
+
+-- Least-privilege roles (created once by roles.sql): recreating the tables
+-- above dropped their grants and policies, so give them back. Skipped when
+-- the roles do not exist. Keep in sync with the grants in roles.sql.
+DO $$
+DECLARE
+  t text;
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'smartbnb_app')
+     AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'smartbnb_backup') THEN
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_app, smartbnb_backup;
+    GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO smartbnb_backup;
+    GRANT INSERT ON public.ai_analyses TO smartbnb_app;
+    FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+      EXECUTE format('DROP POLICY IF EXISTS smartbnb_read ON public.%I', t);
+      EXECUTE format(
+        'CREATE POLICY smartbnb_read ON public.%I FOR SELECT TO smartbnb_app, smartbnb_backup USING (true)', t);
+    END LOOP;
+    DROP POLICY IF EXISTS smartbnb_app_insert ON public.ai_analyses;
+    CREATE POLICY smartbnb_app_insert ON public.ai_analyses
+      FOR INSERT TO smartbnb_app WITH CHECK (true);
+  END IF;
+END $$;
