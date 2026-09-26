@@ -27,9 +27,11 @@ cd smartbnb/backend
 npm ci
 npm test
 
-# Frontend build
+# Frontend lint, tests and build
 cd ../frontend
 npm ci
+npm run lint
+npm test
 npm run build
 ```
 
@@ -42,8 +44,11 @@ snapshots in `data/`.
 1. Fork the repository and create a branch from `main`:
    `feat/<short-name>` for a feature, `fix/<short-name>` for a bug fix.
 2. Keep the change focused on one thing, and add or update tests in
-   `smartbnb/backend/test` when you change backend behaviour.
-3. Make sure `npm test` (backend) and `npm run build` (frontend) pass.
+   `smartbnb/backend/test` or `smartbnb/frontend/test` when you change
+   behaviour. Logic worth testing goes in `smartbnb/frontend/src/lib`, so it
+   can be tested without a browser.
+3. Make sure `npm test` (backend) and `npm run lint`, `npm test` and
+   `npm run build` (frontend) pass.
 4. Open a pull request against `main` and describe what changed and how you
    checked it. The **Build + Tests** check must pass before it can be merged.
 
