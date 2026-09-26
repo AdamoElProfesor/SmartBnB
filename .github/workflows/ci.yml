@@ -49,3 +49,11 @@ jobs:
         run: |
           npm ci
           npm test
+
+      # data/ is public: every snapshot must hold only the columns the
+      # loader uses (PUBLISHED_COLS), never host names or host texts
+      - name: Check the published snapshots
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet -r data/db/requirements.txt
+          /tmp/venv/bin/python data/db/load_data.py --check
