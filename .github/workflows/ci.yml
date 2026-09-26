@@ -3,11 +3,13 @@ name: CI
 # Runs on every pull request to main and on main itself. "Build + Tests" is the
 # required check of the protected main branch, and Render deploys main only
 # once it passes. Tests mock the database and the AI, so they need no secrets.
+# workflow_dispatch lets data-refresh.yml start it on its snapshot branch.
 on:
   pull_request:
     branches: ["main"]
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -50,10 +52,12 @@ jobs:
           npm ci
           npm test
 
-      # data/ is public: every snapshot must hold only the columns the
-      # loader uses (PUBLISHED_COLS), never host names or host texts
-      - name: Check the published snapshots
+      # Data pipeline tests (no database needed), then data/ is public: every
+      # snapshot must hold only the columns the loader uses (PUBLISHED_COLS),
+      # never host names or host texts
+      - name: Test the data pipeline and check the published snapshots
         run: |
           python3 -m venv /tmp/venv
-          /tmp/venv/bin/pip install --quiet -r data/db/requirements.txt
+          /tmp/venv/bin/pip install --quiet -r data/db/requirements-dev.txt
+          (cd data/db && /tmp/venv/bin/python -m pytest -q)
           /tmp/venv/bin/python data/db/load_data.py --check
