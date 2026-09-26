@@ -7,6 +7,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `schema.sql` | Creates all tables (drops them first) |
 | `seed.sql` | The 10 amenity categories and their score weights |
 | `load_data.py` | Loads every CSV in `data/` and recomputes the stats tables |
+| `roles.sql` | Least-privilege roles for the backend and the backup (see below) |
 
 ## Tables
 
@@ -76,3 +77,27 @@ price per listing.
 
 Put the same `DATABASE_URL` in `smartbnb/backend/.env`. SSL is enabled
 automatically for remote hosts and disabled for `localhost`.
+
+## Least-privilege roles
+
+`schema.sql` enables row level security with no policy, so only the owner
+(`postgres`) sees any row. Connecting the backend and the backup as `postgres`
+works, but then a leaked credential can drop every table, including
+`price_observations`, which cannot be rebuilt. `roles.sql` creates two roles
+that can only do what their job needs:
+
+| Role | Used by | Rights |
+| --- | --- | --- |
+| `smartbnb_app` | backend (Render `DATABASE_URL`) | read every table, insert into `ai_analyses` |
+| `smartbnb_backup` | `pg_dump` (GitHub secret `BACKUP_DATABASE_URL`) | read every table and sequence |
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -v app_password="$(openssl rand -hex 32)" \
+  -v backup_password="$(openssl rand -hex 32)" \
+  -f data/db/roles.sql
+```
+
+Run it again after each `schema.sql` (recreating the tables drops their
+policies). On the Supabase pooler the user name is `<role>.<project ref>`.
+Keep `postgres` for `schema.sql`, `load_data.py` and `scrape_prices.py`.

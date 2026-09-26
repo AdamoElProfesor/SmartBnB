@@ -34,7 +34,7 @@ jobs:
           echo "FILE=${FILE}" >> "$GITHUB_ENV"
           mkdir -p backup
           docker run --rm -e BACKUP_DATABASE_URL -v "$PWD/backup:/backup" postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f \
-            sh -c 'pg_dump "$BACKUP_DATABASE_URL" --schema=public --format=custom --compress=9 --no-owner --no-privileges --file="/backup/'"${FILE}"'"'
+            sh -c 'pg_dump "$BACKUP_DATABASE_URL" --schema=public --format=custom --compress=9 --no-owner --no-privileges --enable-row-security --file="/backup/'"${FILE}"'"'
 
       - name: Check the dump
         run: |
