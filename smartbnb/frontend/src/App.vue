@@ -25,6 +25,7 @@
     <HeatmapSection />
     <Top10WithMap />
     <PriceEvolution />
+    <OpenSource />
   </main>
 
   <footer class="site-footer">
@@ -45,6 +46,7 @@ import Evaluator from "./components/Evaluator.vue";
 import HeatmapSection from "./components/HeatmapSection.vue";
 import Top10WithMap from "./components/Top10WithMap.vue";
 import PriceEvolution from "./components/PriceEvolution.vue";
+import OpenSource from "./components/OpenSource.vue";
 </script>
 
 <style>
