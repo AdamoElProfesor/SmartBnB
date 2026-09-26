@@ -3,7 +3,7 @@
     <div class="wrap">
       <div class="section-head">
         <h2>Top 10 stays right now</h2>
-        <p>Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb.</p>
+        <p>Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb. "Cheapest" only counts stays you can book for less than a month.</p>
       </div>
 
       <div class="tabs" role="tablist" aria-label="Top 10 lists">
@@ -36,7 +36,10 @@
                 <span class="rank">{{ i + 1 }}</span>
                 <span class="info">
                   <span class="title">{{ item.title }}</span>
-                  <span class="meta">{{ item.city }}, {{ roomTypeLabel(item.type) }}</span>
+                  <span class="meta">
+                    {{ item.city }}, {{ roomTypeLabel(item.type) }}
+                    <span v-if="item.longStay" class="stay-badge">{{ minStayLabel(item.minNights) }}</span>
+                  </span>
                 </span>
                 <span class="metric">{{ metric(item) }}</span>
               </a>
@@ -85,6 +88,13 @@ function metric(item) {
   return isNum(item.rating) ? `${item.rating.toFixed(2)} ★` : "";
 }
 
+/** 90 -> "Min. 3 months", 45 -> "Min. 45 nights" */
+function minStayLabel(nights) {
+  const months = Math.round(nights / 30);
+  if (nights % 30 === 0 || nights >= 60) return `Min. ${months} month${months > 1 ? "s" : ""}`;
+  return `Min. ${nights} nights`;
+}
+
 function mapListing(l) {
   return {
     id: l.id,
@@ -94,6 +104,8 @@ function mapListing(l) {
     rating: toNumberOrNull(l.rating),
     price: toNumberOrNull(l.price),
     reviews: toNumberOrNull(l.number_of_reviews_ltm),
+    minNights: toNumberOrNull(l.minimum_nights),
+    longStay: l.long_stay === true,
     lat: toNumberOrNull(l.latitude),
     lng: toNumberOrNull(l.longitude),
   };
@@ -220,6 +232,17 @@ onMounted(async () => {
 .info { display: grid; min-width: 0; }
 .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .meta { color: var(--ink-2); font-size: 0.9rem; }
+.stay-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .metric { font-weight: 700; white-space: nowrap; }
 
 .map-col { position: relative; }

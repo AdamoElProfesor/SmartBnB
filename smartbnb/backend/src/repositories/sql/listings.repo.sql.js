@@ -1,9 +1,15 @@
 const { all, one } = require("../../config/db_sql");
 
+// Airbnb's own threshold for monthly stays: a listing that requires at least
+// this many nights is a long-term rental, not a holiday stay.
+const LONG_STAY_MIN_NIGHTS = 28;
+
 /**
- * Search listings still active in the latest scrape, with optional filters/sort
+ * Search listings still active in the latest scrape, with optional filters/sort.
+ * The price ranking leaves out long stays: their monthly rent spread per night
+ * is not comparable with a holiday price.
  * @param {{ ratingMin?: number, sort?: 'price_asc'|'most_booked'|'rating_desc'|'listing_id_asc'|string, limit?: number }} params
- * @returns {Promise<Array<{ id: string, name: string, neighborhood: string, latitude: number, longitude: number, room_type: string, accommodates: number, price: number|null, rating: number|null, number_of_reviews_ltm: number|null, host_is_superhost: boolean }>>}
+ * @returns {Promise<Array<{ id: string, name: string, neighborhood: string, latitude: number, longitude: number, room_type: string, accommodates: number, price: number|null, rating: number|null, number_of_reviews_ltm: number|null, minimum_nights: number|null, long_stay: boolean, host_is_superhost: boolean }>>}
  */
 exports.search = async ({
   ratingMin = 0,
@@ -39,12 +45,15 @@ exports.search = async ({
       cp.price,
       l.review_scores_rating     AS rating,
       l.number_of_reviews_ltm,
+      l.minimum_nights,
+      COALESCE(l.minimum_nights >= $4, false) AS long_stay,
       v.host_is_superhost
     FROM public.airbnb_vaud v
     JOIN latest l ON l.listing_id = v.id
     LEFT JOIN public.current_prices cp ON cp.listing_id = v.id
     WHERE COALESCE(l.review_scores_rating, 0) >= $1
       AND l.scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)
+      AND ($2 <> 'price_asc' OR l.minimum_nights IS NULL OR l.minimum_nights < $4)
     ORDER BY
       CASE WHEN $2 = 'price_asc'   THEN cp.price END ASC  NULLS LAST,
       CASE WHEN $2 = 'most_booked' THEN l.number_of_reviews_ltm END DESC NULLS LAST,
@@ -53,7 +62,7 @@ exports.search = async ({
       v.id ASC
     LIMIT LEAST($3, 100);
     `,
-    [Number(ratingMin) || 0, String(sort || ""), Number(lim)]
+    [Number(ratingMin) || 0, String(sort || ""), Number(lim), LONG_STAY_MIN_NIGHTS]
   );
   return rows;
 };
