@@ -9,8 +9,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // tout ce qui commence par /api ira vers ton backend Express
+      // API_PROXY_TARGET=https://www.smartbnb.ch npm run dev uses the live API
       "/api": {
-        target: "http://localhost:3000",
+        target: process.env.API_PROXY_TARGET || "http://localhost:3000",
         changeOrigin: true,
       },
     },
