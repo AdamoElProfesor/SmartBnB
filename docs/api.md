@@ -8,6 +8,9 @@ All endpoints live under `/api` and answer JSON. Errors share one shape:
 
 - `400 Bad Request` -> invalid parameter or body; `error` says which one
 - `404 Not Found` -> unknown `/api` route (`"Not found"`) or unknown listing
+- `429 Too Many Requests` -> `"Too many requests, please wait a minute and try
+  again."`: every `/api` route except `/api/health` allows 120 requests per
+  minute per visitor by default (`API_LIMIT_PER_MINUTE`)
 - `500 Internal Server Error` -> `"Internal server error"` (the stack is only
   added outside production)
 
@@ -129,7 +132,9 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
 ```
 
   `analysis` is empty (`pros: [], cons: [], summary: ""`) when no AI key is
-  set or the AI call fails. `analysis_cached` is `true` when it comes from the
+  set, the AI call fails (the listing is then not retried for 5 minutes), or
+  the daily AI budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default).
+  It holds at most 4 pros and 4 cons. `analysis_cached` is `true` when it comes from the
   `ai_analyses` cache instead of a new AI call. Fields without data are `null`.
 
 - `400 Bad Request` -> `"Invalid Airbnb URL"` (missing, empty or not a
@@ -147,7 +152,8 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
 ### **`GET /api/heatmap`**
 
 Returns the price map points: one point per listing of the latest scrape that
-has coordinates and a current price.
+has coordinates and a current price. The response is cached in memory for 10
+minutes (`READ_CACHE_TTL_MS`), since it only changes when a snapshot is loaded.
 
 ### Response
 
@@ -172,6 +178,7 @@ has coordinates and a current price.
 
 Returns the change of the median nightly price per region, in percent, between
 the first priced scrape of the last 12 months and the latest priced scrape.
+Cached in memory like the heatmap.
 
 ### Response
 
