@@ -152,7 +152,7 @@ describe("Listings endpoints", () => {
 
     const response = await request(app).get("/api/listings/999999999");
     expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: "Listing not found" });
+    expect(response.body).toEqual({ ok: false, error: "Listing not found" });
     expect(listingService.getById).toHaveBeenCalledWith("999999999");
   });
 });

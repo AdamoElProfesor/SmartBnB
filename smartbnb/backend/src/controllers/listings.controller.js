@@ -28,7 +28,7 @@ exports.getById = async (req, res, next) => {
   try {
     const data = await service.getById(parseListingId(req.params.id));
     if (!data) {
-      return res.status(404).json({ error: "Listing not found" });
+      return res.status(404).json({ ok: false, error: "Listing not found" });
     }
     res.json(data);
   } catch (e) {
