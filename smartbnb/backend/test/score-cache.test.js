@@ -34,6 +34,7 @@ const KEY = { model: "@cf/openai/gpt-oss-20b", dataVersion: "sha256:abc" };
 describe("score.service analysis cache", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    service._resetFailures();
     repo.listings.getById.mockResolvedValue(listing);
     ai.analysisCacheKey.mockReturnValue(KEY);
   });
@@ -65,6 +66,16 @@ describe("score.service analysis cache", () => {
     const out = await service.computeFromUrl("53584592");
     expect(out.ok).toBe(true);
     expect(repo.aiAnalyses.save).not.toHaveBeenCalled();
+  });
+
+  test("after an empty analysis the listing is not sent to the AI again for a while", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(null);
+    ai.chatProsCons.mockResolvedValue({ pros: [], cons: [], summary: "" });
+    await service.computeFromUrl("53584592");
+    const out = await service.computeFromUrl("53584592");
+    expect(out.ok).toBe(true);
+    expect(out.analysis).toEqual({ pros: [], cons: [], summary: "" });
+    expect(ai.chatProsCons).toHaveBeenCalledTimes(1);
   });
 
   test("parallel checks of one listing share a single AI call", async () => {
