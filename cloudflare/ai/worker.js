@@ -1,6 +1,15 @@
 // OpenAI-compatible chat endpoint backed by Workers AI (open-weights models).
 // The backend talks to it with the regular OpenAI SDK: baseURL = <worker>/v1, apiKey = AI_API_KEY.
 const DEFAULT_MODEL = "@cf/openai/gpt-oss-20b";
+// A leaked key must not be able to pick a costlier model or ask for huge
+// replies: other models must be listed in the ALLOWED_MODELS var (comma
+// separated), and max_tokens is capped.
+const MAX_TOKENS_CAP = 1500;
+
+function allowedModel(requested, env) {
+  const allowed = new Set([DEFAULT_MODEL, ...String(env.ALLOWED_MODELS || "").split(",").map((m) => m.trim())]);
+  return requested && allowed.has(requested) ? requested : DEFAULT_MODEL;
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -46,11 +55,12 @@ export default {
     }
     if (!Array.isArray(body.messages)) return error("messages is required", 400);
 
-    const model = body.model || DEFAULT_MODEL;
+    const model = allowedModel(body.model, env);
+    const requestedTokens = Number(body.max_tokens) || 800;
     const input = {
       messages: body.messages,
       temperature: body.temperature,
-      max_tokens: body.max_tokens ?? 800,
+      max_tokens: Math.min(Math.max(requestedTokens, 1), MAX_TOKENS_CAP),
     };
     if (body.response_format?.type === "json_object") {
       input.response_format = { type: "json_object" };
@@ -60,7 +70,9 @@ export default {
     try {
       result = await env.AI.run(model, input);
     } catch (e) {
-      return error(`Workers AI: ${e.message}`, 502);
+      // Details go to the Worker logs (wrangler tail), not to the caller
+      console.error("Workers AI error:", e.message);
+      return error("AI model error", 502);
     }
 
     // Workers AI returns either { response } or an OpenAI-style { choices }
