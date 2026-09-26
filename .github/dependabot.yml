@@ -1,12 +1,20 @@
 # Weekly update PRs for every dependency source, including the GitHub
 # Actions and Docker images pinned by SHA / digest (Dependabot keeps the
 # version comment next to the SHA in sync).
+#
+# Major versions of the npm packages and of the Node image are ignored:
+# they are migrations (Express 5, a non-LTS Node...) to plan and test by
+# hand, not updates to merge on sight. Minor and patch updates, which carry
+# the security fixes, are grouped into one PR per folder.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /smartbnb/backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       backend:
         patterns: ["*"]
@@ -15,6 +23,9 @@ updates:
     directory: /smartbnb/frontend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       frontend:
         patterns: ["*"]
@@ -31,7 +42,11 @@ updates:
     schedule:
       interval: weekly
 
+  # Stays on the current LTS line (22) until a planned upgrade
   - package-ecosystem: docker
     directory: /smartbnb
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
