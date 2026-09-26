@@ -155,7 +155,7 @@ has coordinates and a current price.
 ```json
 {
   "ok": true,
-  "points": [ { "lat": 0, "lng": 0, "weight": 0 } ],
+  "points": [ { "lat": 0, "lng": 0, "weight": 0, "price": 0 } ],
   "meta": {
     "mode": "listing",
     "normalization": { "min": 0, "max": 0 }
@@ -163,9 +163,10 @@ has coordinates and a current price.
 }
 ```
 
-  `weight` is the price scaled with `(price - min) / (max - min)`, where `max`
-  is the 95th percentile of prices (the real maximum with fewer than 20
-  points). The 5% most expensive listings can therefore be above 1.
+  `price` is the nightly price in CHF. `weight` is that price scaled between 0
+  and 1 with `(price - min) / (max - min)`, where `max` is the 95th percentile
+  of prices (the real maximum with fewer than 20 points). The 5% most
+  expensive listings are clamped to 1.
 
 ### **`GET /api/histogram`**
 
@@ -179,5 +180,6 @@ the first priced scrape of the last 12 months and the latest priced scrape.
 { "ok": true, "data": [ { "region": "string", "pct": 0 } ] }
 ```
 
-  Regions without prices at both dates are left out. `pct` is `null` when the
+  Regions without prices at both dates are left out, and `data` is empty when
+  only one scrape has prices (nothing to compare). `pct` is `null` when the
   starting median is 0.
