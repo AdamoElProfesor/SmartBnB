@@ -57,11 +57,10 @@ there and delete this Worker.
 ## `keepalive/`: keeps Render and Supabase awake
 
 Cron-only Worker (no HTTP route, `workers.dev` disabled). Every 10 minutes it
-sends `GET https://www.smartbnb.ch/api/histogram`, a small request that runs a
-real database query. This keeps the free Render service from sleeping (no 10 to
-60 s cold start for visitors) and keeps the free Supabase project active (it
-is paused after 7 days without activity). When `GET /api/health` is live on the
-backend, `PING_URL` in `worker.js` can point to it instead.
+sends `GET https://www.smartbnb.ch/api/health`, a small request that runs a
+real database query (`SELECT 1`). This keeps the free Render service from
+sleeping (no 10 to 60 s cold start for visitors) and keeps the free Supabase
+project active (it is paused after 7 days without activity).
 
 ```bash
 cd cloudflare/keepalive
