@@ -29,7 +29,11 @@ Computes the SmartBnB score for an Airbnb URL and returns a summary
 
 ### Body (JSON)
 B
-- `airbnbUrl`: the Airbnb listing URL to analyze
+- `airbnbUrl`: the listing to analyze. Accepts a bare listing id, a full
+  listing URL (`/rooms/<id>`), or a share link from the Airbnb app
+  (`airbnb.<tld>/l/<code>`, `airbnb.<tld>/h/<name>`, `abnb.me/<code>`).
+  Share links are resolved by following their redirects, only to Airbnb
+  hosts over https, with a 3 second timeout.
 
 ### Response
 
@@ -57,6 +61,9 @@ B
 - `400 Bad Request`-> invalid or missing URL
 
 - `404 Not Found` -> listing could not be matched from the provided URL
+
+- `422 Unprocessable Entity` -> a share link was recognised but did not
+  redirect to a listing (expired code, timeout, or redirect outside Airbnb)
 
 ## Visualizations
 
