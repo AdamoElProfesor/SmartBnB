@@ -19,7 +19,10 @@ DATABASE_URL is read from the environment or data/db/.env.
 
 import argparse
 import ast
+import csv
 import glob
+import gzip
+import io
 import os
 import re
 import urllib.request
@@ -90,10 +93,48 @@ def to_number(series):
     return pd.to_numeric(cleaned, errors="coerce")
 
 
+# A Vaud snapshot is about 3 MB: anything far bigger is not what we expect
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+
+
 def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "SmartBnB data loader"})
     with urllib.request.urlopen(req, timeout=120) as res:
-        return res.read()
+        body = res.read(MAX_DOWNLOAD_BYTES + 1)
+    if len(body) > MAX_DOWNLOAD_BYTES:
+        raise SystemExit(f"Download larger than {MAX_DOWNLOAD_BYTES} bytes, stopped: {url}")
+    return body
+
+
+# Columns that identify a host as a person. The loader never uses them, and
+# data/ is public, so they are removed before a new snapshot is saved (data
+# minimisation, GDPR / Swiss nLPD). Host statistics (superhost, response
+# rate, number of listings) are kept.
+HOST_PERSONAL_COLS = {
+    "host_id", "host_url", "host_profile_id", "host_profile_url", "host_name",
+    "host_location", "host_about", "host_thumbnail_url", "host_picture_url",
+    "host_neighbourhood", "host_verifications",
+}
+
+
+def strip_personal_columns(csv_bytes):
+    """Returns the CSV without HOST_PERSONAL_COLS, other values untouched."""
+    rows = csv.reader(io.StringIO(csv_bytes.decode("utf-8"), newline=""))
+    header = next(rows)
+    keep = [i for i, name in enumerate(header) if name not in HOST_PERSONAL_COLS]
+    out = io.StringIO(newline="")
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(header[i] for i in keep)
+    for row in rows:
+        writer.writerow(row[i] for i in keep if i < len(row))
+    return out.getvalue().encode("utf-8")
+
+
+def snapshot_date(value):
+    """argparse type: only YYYY-MM-DD, since the date goes into a path and a URL."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise argparse.ArgumentTypeError(f"not a YYYY-MM-DD date: {value!r}")
+    return value
 
 
 def latest_snapshot_date():
@@ -111,7 +152,19 @@ def fetch_snapshots(dates):
         if dest.exists():
             print(f"  {date}: already on disk")
             continue
-        dest.write_bytes(http_get(SNAPSHOT_URL.format(date=date)))
+        body = http_get(SNAPSHOT_URL.format(date=date))
+        # Check the archive is complete before it lands in data/, and write
+        # it under a temporary name first, so a failed or truncated download
+        # never leaves a broken file that later loads would pick up
+        try:
+            raw = gzip.decompress(body)
+        except (OSError, EOFError) as e:
+            raise SystemExit(f"  {date}: download is not a valid gzip file ({e})")
+        if not raw.startswith(b"id,"):
+            raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
+        tmp = dest.with_name(dest.name + ".part")
+        tmp.write_bytes(gzip.compress(strip_personal_columns(raw), mtime=0))
+        tmp.replace(dest)
         print(f"  {date}: downloaded")
 
 
@@ -328,7 +381,7 @@ def run_statements(cur, sql, params=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", action="store_true", help="download the latest InsideAirbnb snapshot first")
-    parser.add_argument("--dates", nargs="+", default=[], metavar="YYYY-MM-DD", help="download these snapshots first")
+    parser.add_argument("--dates", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="download these snapshots first")
     parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
     parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")

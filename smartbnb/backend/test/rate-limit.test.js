@@ -81,6 +81,19 @@ describe("POST /api/score rate limiting", () => {
     expect(res.status).toBe(429);
   });
 
+  test("a foreign Worker cannot pick a fresh key per request", async () => {
+    const { app } = loadApp();
+    for (let i = 0; i < 10; i++) {
+      await score(app, {
+        "cf-connecting-ip": WORKER_IP,
+        "x-smartbnb-client-ip": `203.0.113.${i}`,
+        "x-forwarded-for": `198.51.100.${i}`,
+      });
+    }
+    const res = await score(app, { "cf-connecting-ip": WORKER_IP, "x-smartbnb-client-ip": "203.0.113.99" });
+    expect(res.status).toBe(429);
+  });
+
   test("the health check is never rate limited", async () => {
     const { app } = loadApp();
     const ip = { "cf-connecting-ip": "203.0.113.11" };
@@ -108,28 +121,54 @@ describe("clientIp", () => {
     );
   });
 
-  test("uses the relay header when the request comes from a Worker", () => {
-    expect(clientIp(fakeReq({ "cf-connecting-ip": WORKER_IP, "x-smartbnb-client-ip": "203.0.113.7" }))).toBe(
-      "203.0.113.7"
-    );
+  test("never trusts the relay header without RELAY_SECRET, even from a Worker", () => {
+    expect(clientIp(fakeReq({ "cf-connecting-ip": WORKER_IP, "x-smartbnb-client-ip": "203.0.113.7" }))).toBe(WORKER_IP);
   });
 
   test("requires the relay secret when one is configured", () => {
     process.env.RELAY_SECRET = "s3cret";
     const headers = { "cf-connecting-ip": WORKER_IP, "x-smartbnb-client-ip": "203.0.113.7", "x-forwarded-for": "198.51.100.1" };
-    expect(clientIp(fakeReq(headers))).toBe("198.51.100.1");
-    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "wrong" }))).toBe("198.51.100.1");
+    expect(clientIp(fakeReq(headers))).toBe(WORKER_IP);
+    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "wrong" }))).toBe(WORKER_IP);
     expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "s3cret" }))).toBe("203.0.113.7");
   });
 
-  test("falls back to the first X-Forwarded-For hop behind a Worker, then req.ip", () => {
+  test("accepts any of several comma-separated secrets during a rotation", () => {
+    process.env.RELAY_SECRET = "old-secret, new-secret";
+    const headers = { "cf-connecting-ip": WORKER_IP, "x-smartbnb-client-ip": "203.0.113.7" };
+    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "old-secret" }))).toBe("203.0.113.7");
+    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "new-secret" }))).toBe("203.0.113.7");
+    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "other" }))).toBe(WORKER_IP);
+    expect(clientIp(fakeReq({ ...headers, "x-smartbnb-relay-key": "" }))).toBe(WORKER_IP);
+  });
+
+  test("never reads X-Forwarded-For by hand behind a Worker, falls back to req.ip without Cloudflare", () => {
     expect(clientIp(fakeReq({ "cf-connecting-ip": WORKER_IP, "x-forwarded-for": "203.0.113.5, 2a06:98c0:3600::103" }))).toBe(
-      "203.0.113.5"
+      WORKER_IP
     );
     expect(clientIp(fakeReq({}, "192.0.2.4"))).toBe("192.0.2.4");
   });
 
   test("ignores values that are not IP addresses", () => {
     expect(clientIp(fakeReq({ "cf-connecting-ip": "not-an-ip" }, "192.0.2.4"))).toBe("192.0.2.4");
+  });
+});
+
+describe("/api rate limiting", () => {
+  afterEach(() => {
+    delete process.env.API_LIMIT_PER_MINUTE;
+  });
+
+  test("caps every API route per IP, but not the health check", async () => {
+    process.env.API_LIMIT_PER_MINUTE = "3";
+    const { app } = loadApp();
+    const ip = { "cf-connecting-ip": "203.0.113.20" };
+    for (let i = 0; i < 3; i++) {
+      expect((await request(app).get("/api/unknown").set(ip)).status).toBe(404);
+    }
+    const res = await request(app).get("/api/unknown").set(ip);
+    expect(res.status).toBe(429);
+    expect(res.body.ok).toBe(false);
+    expect((await request(app).get("/api/health").set(ip)).status).not.toBe(429);
   });
 });
