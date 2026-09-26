@@ -4,6 +4,7 @@ const path = require("path");
 const express = require("express");
 const helmet = require("helmet");
 const apiApp = require("./app");
+const { warnIfRelaySecretMissing } = require("./middleware/rate-limit");
 
 /**
  * Security headers. The CSP lists every third party the frontend uses:
@@ -63,6 +64,7 @@ function buildApp() {
  * @returns {Promise<void>}
  */
 async function bootstrap() {
+  warnIfRelaySecretMissing();
   const app = buildApp();
   const port = process.env.PORT || 3000;
   app.listen(port, () => {
