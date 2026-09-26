@@ -11,6 +11,7 @@ node_modules
 
 # Database dumps and backups
 *.dump
+*.part
 *.gpg
 *.sql.gz
 backup/
