@@ -52,8 +52,9 @@ REVIEW_COLS = [
 ]
 
 SNAPSHOT_COLS = [
-    "listing_id", "scrape_id", "last_scraped", "price", "number_of_reviews",
-    "number_of_reviews_ltm", *REVIEW_COLS, "reviews_per_month",
+    "listing_id", "scrape_id", "last_scraped", "price", "minimum_nights",
+    "number_of_reviews", "number_of_reviews_ltm", *REVIEW_COLS,
+    "reviews_per_month",
 ]
 
 # Amenity category id (see seed.sql) -> regex matched on the lowercased
@@ -244,7 +245,7 @@ def build_snapshots(df):
                   f"(median {median}), prices ignored")
     # Remaining isolated values below a plausible nightly price are dropped too
     snap.loc[snap["price"] < MIN_PLAUSIBLE_MEDIAN_PRICE, "price"] = float("nan")
-    for col in ("scrape_id", "number_of_reviews", "number_of_reviews_ltm"):
+    for col in ("scrape_id", "minimum_nights", "number_of_reviews", "number_of_reviews_ltm"):
         snap[col] = pd.to_numeric(snap[col], errors="coerce").astype("Int64")
     snap["last_scraped"] = snap["last_scraped"].dt.date
     return snap.drop_duplicates(["listing_id", "scrape_id"], keep="last")
