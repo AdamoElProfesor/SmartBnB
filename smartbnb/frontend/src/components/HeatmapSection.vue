@@ -82,12 +82,8 @@ async function fetchPoints() {
   priceMax.value = Number.isFinite(max) ? max : null;
 
   points.value = res.points
-    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.weight))
-    .map((p) => ({
-      lat: +p.lat,
-      lng: +p.lng,
-      price: Number.isFinite(min) && Number.isFinite(max) ? min + p.weight * (max - min) : p.weight,
-    }));
+    .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.price))
+    .map((p) => ({ lat: +p.lat, lng: +p.lng, price: +p.price }));
 
   if (!points.value.length) throw new Error("No points");
 }
