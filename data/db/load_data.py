@@ -20,6 +20,7 @@ DATABASE_URL is read from the environment or data/db/.env.
 import argparse
 import ast
 import glob
+import gzip
 import os
 import re
 import urllib.request
@@ -90,10 +91,24 @@ def to_number(series):
     return pd.to_numeric(cleaned, errors="coerce")
 
 
+# A Vaud snapshot is about 3 MB: anything far bigger is not what we expect
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
+
+
 def http_get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "SmartBnB data loader"})
     with urllib.request.urlopen(req, timeout=120) as res:
-        return res.read()
+        body = res.read(MAX_DOWNLOAD_BYTES + 1)
+    if len(body) > MAX_DOWNLOAD_BYTES:
+        raise SystemExit(f"Download larger than {MAX_DOWNLOAD_BYTES} bytes, stopped: {url}")
+    return body
+
+
+def snapshot_date(value):
+    """argparse type: only YYYY-MM-DD, since the date goes into a path and a URL."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        raise argparse.ArgumentTypeError(f"not a YYYY-MM-DD date: {value!r}")
+    return value
 
 
 def latest_snapshot_date():
@@ -111,7 +126,19 @@ def fetch_snapshots(dates):
         if dest.exists():
             print(f"  {date}: already on disk")
             continue
-        dest.write_bytes(http_get(SNAPSHOT_URL.format(date=date)))
+        body = http_get(SNAPSHOT_URL.format(date=date))
+        # Check the archive is complete before it lands in data/, and write
+        # it under a temporary name first, so a failed or truncated download
+        # never leaves a broken file that later loads would pick up
+        try:
+            header = gzip.decompress(body).split(b"\n", 1)[0]
+        except (OSError, EOFError) as e:
+            raise SystemExit(f"  {date}: download is not a valid gzip file ({e})")
+        if not header.startswith(b"id,"):
+            raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
+        tmp = dest.with_name(dest.name + ".part")
+        tmp.write_bytes(body)
+        tmp.replace(dest)
         print(f"  {date}: downloaded")
 
 
@@ -328,7 +355,7 @@ def run_statements(cur, sql, params=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", action="store_true", help="download the latest InsideAirbnb snapshot first")
-    parser.add_argument("--dates", nargs="+", default=[], metavar="YYYY-MM-DD", help="download these snapshots first")
+    parser.add_argument("--dates", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="download these snapshots first")
     parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
     parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
