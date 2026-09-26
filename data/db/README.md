@@ -67,6 +67,12 @@ on InsideAirbnb keeping its archives online. `--fetch` and `--dates` save new do
 so commit them after loading. By default only scrapes missing from the
 database are added, so the history is never lost.
 
+Before a download is saved, the columns that identify a host as a person
+(`host_name`, `host_about`, `host_id`, profile URLs and pictures, location...,
+see `HOST_PERSONAL_COLS`) are removed: the loader never uses them and this
+folder is public (data minimisation). Snapshots saved before September 2026
+still contain them.
+
 Prices below 5 CHF are treated as missing: the Swiss scrapes since June 2026
 ship a broken price column. `current_prices` holds each listing's newest valid
 price, from the snapshots or from the monthly price collection in
