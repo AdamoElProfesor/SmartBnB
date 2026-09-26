@@ -32,6 +32,16 @@ cached (`Cache-Control: no-store`).
 
 Returns a filterable list of Airbnb listings still active in the latest scrape.
 
+- `price_asc` leaves out long stays (`minimum_nights` of 28 or more): a monthly
+  rent spread per night is not comparable with a holiday price.
+- `rating_desc` ranks by a Bayesian average, so a perfect rating from a few
+  guests does not beat a near perfect one from hundreds:
+  `(n × rating + m × C) / (n + m)`, where `n` is the listing's number of
+  reviews, `C` the mean rating of the listings in the latest scrape and
+  `m = 40` (`RATING_PRIOR_REVIEWS`). Each rating counts as if it had 40 extra
+  reviews at the mean, which matters for a listing with 5 reviews and barely
+  for one with 400. `rating` in the response stays the raw average.
+
 ### Query parameters
 
 All are optional. An invalid value answers `400`.
@@ -56,7 +66,10 @@ All are optional. An invalid value answers `400`.
     "accommodates": 0,
     "price": 0,
     "rating": 0,
+    "number_of_reviews": 0,
     "number_of_reviews_ltm": 0,
+    "minimum_nights": 0,
+    "long_stay": false,
     "host_is_superhost": true
   }
 ]
