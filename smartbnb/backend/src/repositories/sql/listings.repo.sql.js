@@ -94,8 +94,6 @@ exports.getById = async (
       v.listing_url,
       v.name,
       v.host_is_superhost,
-      v.description,
-      v.neighborhood_overview,
       v.neighbourhood_cleansed       AS neighborhood,
       v.neighbourhood_group_cleansed AS neighborhood_group,
       v.room_type,
