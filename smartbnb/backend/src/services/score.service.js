@@ -56,8 +56,8 @@ async function getAnalysis(input) {
  * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, listing?: object, analysis?: object }>}
  */
 exports.computeFromUrl = async (airbnbUrl) => {
-  const id = urlResolver.extractListingId(String(airbnbUrl || ""));
-  if (!id) return { ok: false, error: "Invalid Airbnb URL" };
+  const { id, shortLink } = await urlResolver.resolveListingId(String(airbnbUrl || ""));
+  if (!id) return { ok: false, error: shortLink ? "Share link could not be resolved" : "Invalid Airbnb URL" };
 
   const listing = await repo.listings.getById(String(id));
   if (!listing) return { ok: false, error: "Listing not found" };
