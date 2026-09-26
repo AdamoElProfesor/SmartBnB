@@ -33,7 +33,8 @@
       <p class="foot-brand">SmartBnB</p>
       <p class="foot-text">
         Built by Adam Gruber, Axel Pittet and Edison Sahitaj.
-        Listing data from <a href="https://insideairbnb.com" target="_blank" rel="noopener">InsideAirbnb</a>,
+        Listing data from <a href="https://insideairbnb.com" target="_blank" rel="noopener">InsideAirbnb</a>
+        (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, cleaned and aggregated),
         maps from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
       </p>
       <a class="foot-gh" href="https://github.com/AdamoElProfesor/SmartBnB" target="_blank" rel="noopener">Source on GitHub</a>

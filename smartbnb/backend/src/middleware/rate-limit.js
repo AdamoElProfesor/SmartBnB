@@ -2,19 +2,6 @@ const crypto = require("crypto");
 const net = require("net");
 const { rateLimit, ipKeyGenerator } = require("express-rate-limit");
 
-// Cloudflare sets CF-Connecting-IP to this address on a subrequest a Worker
-// sends to another Cloudflare zone (our relay -> onrender.com), so it does not
-// identify the visitor there.
-const WORKER_IP_PREFIX = "2a06:98c0:3600:";
-
-/**
- * @param {string} ip
- * @returns {boolean}
- */
-function isWorkerIp(ip) {
-  return ip.toLowerCase().startsWith(WORKER_IP_PREFIX);
-}
-
 /**
  * @param {string} a
  * @param {string} b
@@ -27,24 +14,42 @@ function safeEqual(a, b) {
 }
 
 /**
- * True when X-SmartBnB-Client-IP was set by our relay Worker: it must carry
- * RELAY_SECRET when one is configured, or at least come from a Worker.
+ * Accepted relay secrets. RELAY_SECRET may hold several comma-separated values
+ * so the secret can be rotated without downtime: add the new value on Render,
+ * update the Worker, then remove the old one.
+ * @returns {string[]}
+ */
+function relaySecrets() {
+  return (process.env.RELAY_SECRET || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * True when X-SmartBnB-Client-IP was set by our relay Worker, proven by
+ * X-SmartBnB-Relay-Key. Without RELAY_SECRET the header is never trusted:
+ * any Cloudflare Worker (not only ours) could otherwise set it.
  * @param {import('express').Request} req
- * @param {string} cfIp
  * @returns {boolean}
  */
-function fromRelay(req, cfIp) {
-  const secret = process.env.RELAY_SECRET;
-  if (secret) return safeEqual(req.get("x-smartbnb-relay-key") || "", secret);
-  return Boolean(cfIp) && isWorkerIp(cfIp);
+function fromRelay(req) {
+  const key = req.get("x-smartbnb-relay-key") || "";
+  if (!key) return false;
+  // Check every secret so the timing does not reveal which one matched
+  return relaySecrets().reduce((ok, secret) => safeEqual(key, secret) || ok, false);
 }
 
 /**
  * Visitor IP behind Cloudflare (relay Worker) and Render:
- * 1. X-SmartBnB-Client-IP from the relay (it copies its own CF-Connecting-IP)
- * 2. CF-Connecting-IP, which Cloudflare overwrites so a client cannot forge it
- * 3. the first X-Forwarded-For hop when the request came through a Worker
- * 4. req.ip (X-Forwarded-For read with the app's "trust proxy" setting)
+ * 1. X-SmartBnB-Client-IP, only when the relay proves it with RELAY_SECRET
+ * 2. CF-Connecting-IP, which Cloudflare overwrites so a client cannot forge it.
+ *    Requests from any other Worker share the Worker address range, so they
+ *    all land in the same (IPv6 /56) bucket instead of picking their own key.
+ * 3. req.ip (X-Forwarded-For read with the app's "trust proxy" setting), for
+ *    local runs without Cloudflare
+ * X-Forwarded-For is never read by hand: Cloudflare appends to the value a
+ * client sends, so its first hop is attacker controlled.
  * @param {import('express').Request} req
  * @returns {string}
  */
@@ -52,14 +57,9 @@ function clientIp(req) {
   const cfIp = (req.get("cf-connecting-ip") || "").trim();
 
   const relayed = (req.get("x-smartbnb-client-ip") || "").trim();
-  if (relayed && net.isIP(relayed) && fromRelay(req, cfIp)) return relayed;
+  if (relayed && net.isIP(relayed) && fromRelay(req)) return relayed;
 
-  if (cfIp && net.isIP(cfIp) && !isWorkerIp(cfIp)) return cfIp;
-
-  if (cfIp && isWorkerIp(cfIp)) {
-    const first = (req.get("x-forwarded-for") || "").split(",")[0].trim();
-    if (first && net.isIP(first) && !isWorkerIp(first)) return first;
-  }
+  if (cfIp && net.isIP(cfIp)) return cfIp;
 
   return req.ip || req.socket?.remoteAddress || "unknown";
 }
@@ -102,4 +102,29 @@ function scoreLimiters() {
   ];
 }
 
-module.exports = { clientIp, scoreLimiters };
+/**
+ * Broad limiter for every /api route, so a single client cannot fill the
+ * small database pool with read requests. Tuned with API_LIMIT_PER_MINUTE.
+ * @returns {import('express').RequestHandler}
+ */
+function apiLimiter() {
+  return jsonLimiter({
+    windowMs: 60 * 1000,
+    limit: Number(process.env.API_LIMIT_PER_MINUTE) || 120,
+    message: "Too many requests, please wait a minute and try again.",
+  });
+}
+
+/**
+ * Warns at startup when the backend runs in production without RELAY_SECRET:
+ * every visitor coming through the relay would then share one rate limit.
+ */
+function warnIfRelaySecretMissing() {
+  if (process.env.NODE_ENV === "production" && relaySecrets().length === 0) {
+    console.warn(
+      "[rate-limit] RELAY_SECRET is not set: visitors behind the relay Worker share one rate limit bucket"
+    );
+  }
+}
+
+module.exports = { clientIp, scoreLimiters, apiLimiter, warnIfRelaySecretMissing };

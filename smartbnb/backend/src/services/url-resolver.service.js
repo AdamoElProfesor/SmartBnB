@@ -16,6 +16,18 @@ const ID_PATHS = [
 // and host custom links (airbnb.ch/h/<name>) only give the id after a redirect
 const SHORT_LINK_HOST = /^(?:[a-z0-9-]+\.)*abnb\.me$/i;
 const SHORT_LINK_PATH = /^\/(?:l|h)\/[\w-]+\/?$/;
+// Hosts the server may request. AIRBNB_HOST is fine for reading an id out of
+// a string, but it also matches airbnb.<any tld>, and some of those domains
+// are not Airbnb's: anyone could register one and make the server call it.
+// So requests only go to Airbnb's own country domains (and subdomains).
+const FETCHABLE_AIRBNB_DOMAINS = new Set([
+  "airbnb.com", "airbnb.ch", "airbnb.fr", "airbnb.de", "airbnb.it", "airbnb.es",
+  "airbnb.at", "airbnb.be", "airbnb.nl", "airbnb.pt", "airbnb.ie", "airbnb.co.uk",
+  "airbnb.dk", "airbnb.se", "airbnb.no", "airbnb.fi", "airbnb.pl", "airbnb.cz",
+  "airbnb.gr", "airbnb.hu", "airbnb.ca", "airbnb.mx", "airbnb.cl", "airbnb.co.nz",
+  "airbnb.com.au", "airbnb.com.br", "airbnb.com.ar", "airbnb.co.in", "airbnb.jp",
+  "airbnb.co.kr", "airbnb.com.sg", "airbnb.com.hk", "airbnb.com.tw", "abnb.me",
+]);
 const MAX_REDIRECTS = 4;
 const RESOLVE_TIMEOUT_MS = 3000;
 const USER_AGENT = "Mozilla/5.0 (compatible; SmartBnB/1.0; +https://www.smartbnb.ch)";
@@ -104,11 +116,24 @@ function parseShortLink(input) {
 }
 
 /**
+ * True when the server may send a request to this host
+ * @param {string} hostname
+ * @returns {boolean}
+ */
+function isFetchableHost(hostname) {
+  const host = hostname.toLowerCase();
+  for (const domain of FETCHABLE_AIRBNB_DOMAINS) {
+    if (host === domain || host.endsWith(`.${domain}`)) return true;
+  }
+  return false;
+}
+
+/**
  * Follows the redirects of an Airbnb short link until one points to a listing.
  *
  * The server makes the request, so it must not become a proxy to arbitrary
  * hosts (server-side request forgery): every hop, including each redirect
- * target, must be an Airbnb or abnb.me host over https, redirects are
+ * target, must be one of Airbnb's own domains over https, redirects are
  * followed by hand, the whole chain has a short timeout, and the response
  * bodies are discarded. Only the listing id ever leaves this function.
  * @param {URL} start
@@ -121,7 +146,7 @@ async function followShortLink(start, { fetchImpl = fetch, timeoutMs = RESOLVE_T
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const id = extractListingId(url.href);
     if (id) return id;
-    if (!AIRBNB_HOST.test(url.hostname) && !SHORT_LINK_HOST.test(url.hostname)) return null;
+    if (!isFetchableHost(url.hostname)) return null;
     if (url.username || url.password || url.port) return null;
     url.protocol = "https:";
 
