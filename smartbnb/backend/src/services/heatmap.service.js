@@ -1,4 +1,5 @@
 const repo = require("../repositories/factory");
+const { cached, READ_CACHE_TTL_MS } = require("../utils/cache");
 
 const {
   mapRowsToPoints,
@@ -11,7 +12,7 @@ const {
  * @param {{ mode?: 'listing'|'neighbourhood' }} [options]
  * @returns {Promise<{ ok: true, points: Array<any>, meta: { mode: string, normalization: { min: number|null, max: number|null } } }>}
  */
-async function getHeatMap() {
+async function buildHeatMap() {
   const rows = await repo.heatmap.getHeatMap();
 
   const points = mapRowsToPoints(rows);
@@ -32,5 +33,7 @@ async function getHeatMap() {
     },
   };
 }
+
+const getHeatMap = cached(buildHeatMap, READ_CACHE_TTL_MS);
 
 exports.getHeatMap = getHeatMap;
