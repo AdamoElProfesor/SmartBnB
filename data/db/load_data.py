@@ -19,8 +19,10 @@ DATABASE_URL is read from the environment or data/db/.env.
 
 import argparse
 import ast
+import csv
 import glob
 import gzip
+import io
 import os
 import re
 import urllib.request
@@ -104,6 +106,30 @@ def http_get(url):
     return body
 
 
+# Columns that identify a host as a person. The loader never uses them, and
+# data/ is public, so they are removed before a new snapshot is saved (data
+# minimisation, GDPR / Swiss nLPD). Host statistics (superhost, response
+# rate, number of listings) are kept.
+HOST_PERSONAL_COLS = {
+    "host_id", "host_url", "host_profile_id", "host_profile_url", "host_name",
+    "host_location", "host_about", "host_thumbnail_url", "host_picture_url",
+    "host_neighbourhood", "host_verifications",
+}
+
+
+def strip_personal_columns(csv_bytes):
+    """Returns the CSV without HOST_PERSONAL_COLS, other values untouched."""
+    rows = csv.reader(io.StringIO(csv_bytes.decode("utf-8"), newline=""))
+    header = next(rows)
+    keep = [i for i, name in enumerate(header) if name not in HOST_PERSONAL_COLS]
+    out = io.StringIO(newline="")
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(header[i] for i in keep)
+    for row in rows:
+        writer.writerow(row[i] for i in keep if i < len(row))
+    return out.getvalue().encode("utf-8")
+
+
 def snapshot_date(value):
     """argparse type: only YYYY-MM-DD, since the date goes into a path and a URL."""
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
@@ -131,13 +157,13 @@ def fetch_snapshots(dates):
         # it under a temporary name first, so a failed or truncated download
         # never leaves a broken file that later loads would pick up
         try:
-            header = gzip.decompress(body).split(b"\n", 1)[0]
+            raw = gzip.decompress(body)
         except (OSError, EOFError) as e:
             raise SystemExit(f"  {date}: download is not a valid gzip file ({e})")
-        if not header.startswith(b"id,"):
+        if not raw.startswith(b"id,"):
             raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
         tmp = dest.with_name(dest.name + ".part")
-        tmp.write_bytes(body)
+        tmp.write_bytes(gzip.compress(strip_personal_columns(raw), mtime=0))
         tmp.replace(dest)
         print(f"  {date}: downloaded")
 
