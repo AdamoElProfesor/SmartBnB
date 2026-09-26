@@ -25,8 +25,6 @@ CREATE TABLE public.airbnb_vaud (
   id                            bigint PRIMARY KEY,
   listing_url                   text,
   name                          text,
-  description                   text,
-  neighborhood_overview         text,
   picture_url                   text,
   host_is_superhost             boolean,
   neighbourhood_cleansed        text,
