@@ -9,8 +9,8 @@
 --
 -- "postgres" stays for schema.sql, load_data.py and scrape_prices.py.
 --
--- Run it after schema.sql (which recreates the tables and drops their
--- policies), with two long random passwords:
+-- Run it once, with two long random passwords (schema.sql gives the grants
+-- and policies back each time it recreates the tables):
 --
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 --     -v app_password="$(openssl rand -hex 32)" \
@@ -57,7 +57,8 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 
 -- Row level security is enabled with no policy on every table (schema.sql),
 -- which hides all rows from any role that is not the owner. These policies
--- open the rows to the two roles above, and only to them.
+-- open the rows to the two roles above, and only to them (same block at the
+-- end of schema.sql).
 DO $$
 DECLARE
   t text;

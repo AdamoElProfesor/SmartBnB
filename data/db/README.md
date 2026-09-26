@@ -98,6 +98,6 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f data/db/roles.sql
 ```
 
-Run it again after each `schema.sql` (recreating the tables drops their
-policies). On the Supabase pooler the user name is `<role>.<project ref>`.
+Run it once: `schema.sql` (and `load_data.py --init`) gives the grants and
+policies back whenever it recreates the tables. On the Supabase pooler the user name is `<role>.<project ref>`.
 Keep `postgres` for `schema.sql`, `load_data.py` and `scrape_prices.py`.
