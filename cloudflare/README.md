@@ -8,8 +8,11 @@ Three small Workers run around the Render service. See also
 OpenAI-compatible `POST /v1/chat/completions` backed by
 [Workers AI](https://developers.cloudflare.com/workers-ai/), so the listing
 analysis runs on open-weights models within Cloudflare's free daily allowance.
-The default model is `@cf/openai/gpt-oss-20b`; a request can pick another one
-with `model`.
+The default model is `@cf/openai/gpt-oss-20b`. A request can only pick
+another model listed in the `ALLOWED_MODELS` var (comma separated, in
+`wrangler.toml` or the dashboard), and `max_tokens` is capped at 1500, so a
+leaked key cannot run costlier models or huge replies. Model errors are
+logged in the Worker (`npx wrangler tail`) and returned as a generic 502.
 
 Requests must send `Authorization: Bearer <AI_API_KEY>`. The key is checked
 in constant time (both sides are hashed with SHA-256 and every byte is
