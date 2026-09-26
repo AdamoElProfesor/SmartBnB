@@ -2,10 +2,18 @@
 
 Snapshots are read from data/*.csv.gz, all kept in git so the database can be
 rebuilt from a clone. Downloaded snapshots are saved there too, to be
-committed, with only the columns the loader uses (PUBLISHED_COLS). By default only scrapes that are not in the database yet are
-added, so the history is never lost. Then, in the same transaction:
-  - listings and amenities are refreshed from each listing's latest scrape
-  - amenity points and neighbourhood stats are recomputed
+committed, with only the columns the loader uses (PUBLISHED_COLS). By
+default only scrapes that are not in the database yet are added, so the
+history is never lost. Everything runs in one transaction, following
+Write-Audit-Publish:
+  - write: new scrapes are added, listings and amenities are refreshed from
+    each listing's latest scrape, prices and neighbourhood stats recomputed
+  - audit: quality.py measures the result and checks it
+  - publish: the transaction is committed only when no blocking check
+    failed; otherwise it is rolled back and the site keeps the previous data
+Each run and its metrics are stored in public.etl_runs.
+
+Exit code: 0 published, 2 published with warnings, 1 blocked or failed.
 
 Usage:
   python load_data.py                 # add new scrapes found on disk
@@ -15,6 +23,7 @@ Usage:
   python load_data.py --init          # recreate schema + seed, then --full
   python load_data.py --minimize      # drop unused columns from data/*.csv.gz
   python load_data.py --check         # fail if a file has unused columns
+  python load_data.py --dry-run       # load and audit, then roll back
 
 DATABASE_URL is read from the environment or data/db/.env.
 """
@@ -31,6 +40,9 @@ from pathlib import Path
 
 import pandas as pd
 import psycopg
+from psycopg.types.json import Jsonb
+
+import quality
 
 HERE = Path(__file__).resolve().parent
 DATA_DIR = HERE.parent
@@ -341,18 +353,20 @@ DERIVED_SQL = """
 TRUNCATE public.airbnb_points, public.current_prices,
          public.neighbourhood_room_type_stats, public.neighbourhood_stats;
 
--- Latest valid price of each listing, from the Inside Airbnb snapshots or
--- from data/prices/scrape_prices.py (price_observations), whichever is newer,
--- if seen in the 6 months before the newest price.
+-- Latest plausible price of each listing, from the Inside Airbnb snapshots
+-- or from data/prices/scrape_prices.py (price_observations), whichever is
+-- newer, if seen in the 6 months before the newest price. A price outside
+-- the plausible range (quality.MIN/MAX_NIGHTLY_PRICE) is skipped, so the
+-- listing keeps its previous plausible price.
 INSERT INTO public.current_prices (listing_id, price, price_date)
 WITH prices AS (
   SELECT listing_id, price, last_scraped AS price_date
   FROM public.airbnb_snapshots
-  WHERE price IS NOT NULL
+  WHERE price BETWEEN %(min_price)s AND %(max_price)s
   UNION ALL
   SELECT listing_id, nightly_price::double precision, observed_at::date
   FROM public.price_observations
-  WHERE status = 'ok' AND nightly_price >= %(min_price)s
+  WHERE status = 'ok' AND nightly_price BETWEEN %(min_price)s AND %(max_price)s
 )
 SELECT DISTINCT ON (p.listing_id) p.listing_id, p.price, p.price_date
 FROM prices p
@@ -412,6 +426,45 @@ def run_statements(cur, sql, params=None):
         cur.execute(statement, params)
 
 
+def start_run(url, trigger, mode, dry_run):
+    """Opens the run log: a separate autocommit connection, so the row stays
+    even when the load itself is rolled back. Returns (connection, run id),
+    or (None, None) when the etl_runs table does not exist yet."""
+    log = psycopg.connect(url, autocommit=True, prepare_threshold=None)
+    try:
+        run_id = log.execute(
+            "INSERT INTO public.etl_runs (trigger, mode, dry_run) VALUES (%s, %s, %s) RETURNING id",
+            (trigger, mode, dry_run)).fetchone()[0]
+    except psycopg.errors.UndefinedTable:
+        print("  warning: public.etl_runs does not exist (data/db/schema.sql), run not logged")
+        log.close()
+        return None, None
+    return log, run_id
+
+
+def finish_run(log, run_id, status, new_scrapes=None, metrics=None, results=(), error=None):
+    if log is None:
+        return
+    log.execute(
+        """UPDATE public.etl_runs
+           SET finished_at = now(), status = %s, new_scrapes = %s,
+               metrics = %s, checks = %s, error = %s
+           WHERE id = %s""",
+        (status, new_scrapes, Jsonb(metrics) if metrics is not None else None,
+         Jsonb([r.as_dict() for r in results]), error, run_id))
+    log.close()
+
+
+def previous_metrics(cur):
+    """Metrics of the last run that was published, or None."""
+    cur.execute("""
+        SELECT metrics FROM public.etl_runs
+        WHERE status IN ('success', 'warning') AND NOT dry_run AND metrics IS NOT NULL
+        ORDER BY finished_at DESC LIMIT 1""")
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", action="store_true", help="download the latest InsideAirbnb snapshot first")
@@ -421,6 +474,8 @@ def main():
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
     parser.add_argument("--minimize", action="store_true", help="drop the unpublished columns from data/*.csv.gz, then stop")
     parser.add_argument("--check", action="store_true", help="fail if a file in data/ has unpublished columns (no database needed)")
+    parser.add_argument("--dry-run", action="store_true", help="load and audit, then roll back instead of publishing")
+    parser.add_argument("--trigger", default="manual", help="who started the run, stored in etl_runs (default manual)")
     args = parser.parse_args()
 
     if args.minimize:
@@ -439,48 +494,86 @@ def main():
         print("Fetching snapshots...")
         fetch_snapshots(dates)
 
-    with psycopg.connect(read_database_url(), prepare_threshold=None) as conn:
-        with conn.cursor() as cur:
-            if args.init:
-                cur.execute((HERE / "schema.sql").read_text(encoding="utf-8"))
-                cur.execute((HERE / "seed.sql").read_text(encoding="utf-8"))
-                print("Schema + seed applied")
-            if args.full or args.init:
-                cur.execute("""
-                    TRUNCATE public.airbnb_vaud, public.airbnb_snapshots,
-                             public.airbnb_amenities, public.airbnb_points,
-                             public.current_prices,
-                             public.neighbourhood_room_type_stats,
-                             public.neighbourhood_stats
-                """)
-                known = set()
-            else:
-                cur.execute("SELECT DISTINCT scrape_id FROM public.airbnb_snapshots")
-                known = {row[0] for row in cur.fetchall()}
+    url = read_database_url()
+    mode = "init" if args.init else "full" if args.full else "incremental"
+    log, run_id = start_run(url, args.trigger, mode, args.dry_run)
+    new_scrapes, metrics, results = 0, None, []
+    try:
+        with psycopg.connect(url, prepare_threshold=None) as conn:
+            with conn.cursor() as cur:
+                new_scrapes = write(cur, args)
+                previous = previous_metrics(cur) if log else None
 
-            print("Reading snapshots...")
-            df = read_csvs()
-            df = df[~pd.to_numeric(df["scrape_id"], errors="coerce").isin(known)]
-            if df.empty:
-                print("No new scrape, refreshing derived tables only")
-            else:
-                print(f"Adding {df['scrape_id'].nunique()} new scrape(s), "
-                      f"{df['last_scraped'].min():%Y-%m-%d} to {df['last_scraped'].max():%Y-%m-%d}")
-                run_statements(cur, STAGE_SQL)
-                copy_rows(cur, "stage_listings", [*LISTING_COLS, "last_scraped"], clean_rows(build_listings(df)))
-                copy_rows(cur, "stage_snapshots", SNAPSHOT_COLS, clean_rows(build_snapshots(df)))
-                copy_rows(cur, "stage_amenities", ["airbnb_id", "amenity_id"], build_amenities(df))
-                run_statements(cur, MERGE_SQL)
+                print("Auditing...")
+                metrics = quality.measure(cur)
+                results = quality.evaluate(metrics, previous)
+                print("\n".join(quality.report(results)))
+                outcome = quality.summary(results)
 
-            run_statements(cur, DERIVED_SQL, {"months": args.stats_months,
-                                          "min_price": MIN_PLAUSIBLE_MEDIAN_PRICE})
+                if outcome == "error":
+                    conn.rollback()
+                    print("Blocked: a blocking check failed, nothing was published "
+                          "and the site keeps the previous data.")
+                elif args.dry_run:
+                    conn.rollback()
+                    print("Dry run: rolled back, nothing was published.")
+                else:
+                    print("Published." if outcome == "success" else "Published with warnings.")
+    except BaseException as e:
+        finish_run(log, run_id, "failed", new_scrapes, metrics, results, f"{type(e).__name__}: {e}"[:2000])
+        raise
 
-            for table in ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities", "airbnb_points",
-                          "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats"):
-                cur.execute(f"SELECT COUNT(*) FROM public.{table}")
-                print(f"  {table}: {cur.fetchone()[0]} rows")
+    status = "blocked" if outcome == "error" else outcome
+    finish_run(log, run_id, status, new_scrapes, metrics, results)
+    if run_id:
+        print(f"Run {run_id} logged in public.etl_runs as {status}.")
+    raise SystemExit({"success": 0, "warning": 2}.get(status, 1))
 
-    print("Done.")
+
+def write(cur, args):
+    """The Write step: adds the new scrapes and recomputes the derived tables
+    in the current transaction. Returns the number of new scrapes."""
+    if args.init:
+        cur.execute((HERE / "schema.sql").read_text(encoding="utf-8"))
+        cur.execute((HERE / "seed.sql").read_text(encoding="utf-8"))
+        print("Schema + seed applied")
+    if args.full or args.init:
+        cur.execute("""
+            TRUNCATE public.airbnb_vaud, public.airbnb_snapshots,
+                     public.airbnb_amenities, public.airbnb_points,
+                     public.current_prices,
+                     public.neighbourhood_room_type_stats,
+                     public.neighbourhood_stats
+        """)
+        known = set()
+    else:
+        cur.execute("SELECT DISTINCT scrape_id FROM public.airbnb_snapshots")
+        known = {row[0] for row in cur.fetchall()}
+
+    print("Reading snapshots...")
+    df = read_csvs()
+    df = df[~pd.to_numeric(df["scrape_id"], errors="coerce").isin(known)]
+    new_scrapes = int(df["scrape_id"].nunique())
+    if df.empty:
+        print("No new scrape, refreshing derived tables only")
+    else:
+        print(f"Adding {new_scrapes} new scrape(s), "
+              f"{df['last_scraped'].min():%Y-%m-%d} to {df['last_scraped'].max():%Y-%m-%d}")
+        run_statements(cur, STAGE_SQL)
+        copy_rows(cur, "stage_listings", [*LISTING_COLS, "last_scraped"], clean_rows(build_listings(df)))
+        copy_rows(cur, "stage_snapshots", SNAPSHOT_COLS, clean_rows(build_snapshots(df)))
+        copy_rows(cur, "stage_amenities", ["airbnb_id", "amenity_id"], build_amenities(df))
+        run_statements(cur, MERGE_SQL)
+
+    run_statements(cur, DERIVED_SQL, {"months": args.stats_months,
+                                      "min_price": quality.MIN_NIGHTLY_PRICE,
+                                      "max_price": quality.MAX_NIGHTLY_PRICE})
+
+    for table in ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities", "airbnb_points",
+                  "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats"):
+        cur.execute(f"SELECT COUNT(*) FROM public.{table}")
+        print(f"  {table}: {cur.fetchone()[0]} rows")
+    return new_scrapes
 
 
 if __name__ == "__main__":
