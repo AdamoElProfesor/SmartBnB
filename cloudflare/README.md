@@ -48,8 +48,15 @@ The relay passes the visitor IP to the backend in `X-SmartBnB-Client-IP`,
 because Cloudflare replaces `CF-Connecting-IP` with the Worker's own address
 on this cross-zone request. The backend rate limiter trusts that header only
 when `X-SmartBnB-Relay-Key` matches the `RELAY_SECRET` set on Render (same
-value as the Worker secret). Without `RELAY_SECRET` on Render, it trusts the
-header on any request that comes from a Cloudflare Worker.
+value as the Worker secret). Without `RELAY_SECRET` on Render the header is
+never trusted (any Cloudflare Worker could set it), so every visitor coming
+through the relay shares one rate limit bucket: the backend logs a warning at
+startup in that case. `X-Forwarded-For` is never read by hand, because
+Cloudflare appends to the value the client sends.
+
+To rotate the secret without downtime, set `RELAY_SECRET=old,new` on Render,
+run `npx wrangler secret put RELAY_SECRET` with the new value, then set
+`RELAY_SECRET=new` on Render.
 
 Once the domain can be attached to the Render service directly, point the DNS
 there and delete this Worker.
