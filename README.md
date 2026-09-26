@@ -78,7 +78,9 @@ licensed under
 snapshot since July 2024 is in [`data/`](data), compressed, so the database can
 be rebuilt from a clone without depending on Inside Airbnb keeping its
 archives online. New snapshots are downloaded with
-`python data/db/load_data.py --fetch` and committed.
+`python data/db/load_data.py --fetch` and committed. Only the columns
+SmartBnB uses are kept: no host names, host profiles or texts written by
+hosts.
 
 Since June 2026 the Inside Airbnb snapshots for Switzerland no longer contain
 usable prices. Current prices are collected from Airbnb once a month instead,
