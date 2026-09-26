@@ -94,9 +94,19 @@
           </ul>
         </div>
 
-        <a class="res-link" :href="`https://www.airbnb.ch/rooms/${result.listing_id}`" target="_blank" rel="noopener">
-          Open this listing on Airbnb
-        </a>
+        <div class="res-actions">
+          <a class="res-link" :href="`https://www.airbnb.ch/rooms/${result.listing_id}`" target="_blank" rel="noopener">
+            Open this listing on Airbnb
+          </a>
+          <button type="button" class="share-btn" @click="shareResult">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6" />
+              <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" />
+            </svg>
+            {{ copied ? "Link copied" : "Share this result" }}
+          </button>
+        </div>
+        <span class="sr-only" aria-live="polite">{{ copied ? "Link copied to the clipboard" : "" }}</span>
       </article>
 
       <!-- Before any check: explain the score instead of showing fake data -->
@@ -140,7 +150,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { apiPost } from "../lib/api";
 import { formatCHF, isNum, amenityLabel, roomTypeLabel } from "../lib/format";
 import { priceComparison, scoreErrorMessage, verdictFor } from "../lib/score";
@@ -160,6 +170,7 @@ const error = ref("");
 const result = ref(null);
 const shownScore = ref(0);
 const resultEl = ref(null);
+const copied = ref(false);
 
 const listing = computed(() => result.value?.listing || {});
 const pros = computed(() => result.value?.analysis?.pros || []);
@@ -197,7 +208,52 @@ async function scrollToResult() {
   resultEl.value?.scrollIntoView({ behavior: reduce ? "instant" : "smooth", block: "start" });
 }
 
-async function evaluate(fromUrl) {
+// Shareable results: a successful check puts ?listing=<id> in the address bar,
+// and opening that address runs the same check again.
+const listingFromAddress = () => {
+  const id = new URLSearchParams(window.location.search).get("listing");
+  return id && /^\d{1,19}$/.test(id) ? id : null;
+};
+const shareUrl = (id) => `${window.location.origin}${window.location.pathname}?listing=${id}`;
+
+function checkFromAddress() {
+  const id = listingFromAddress();
+  if (id) return evaluate(`https://www.airbnb.ch/rooms/${id}`, { updateAddress: false });
+  // Back to the page without a listing: show the empty state again
+  result.value = null;
+  error.value = "";
+  url.value = "";
+}
+
+onMounted(() => {
+  window.addEventListener("popstate", checkFromAddress);
+  if (listingFromAddress()) checkFromAddress();
+});
+onBeforeUnmount(() => window.removeEventListener("popstate", checkFromAddress));
+
+let copiedTimer;
+async function shareResult() {
+  const link = shareUrl(result.value.listing_id);
+  const text = `${listing.value.name}: ${result.value.smart_score}/100 on SmartBnB`;
+  // Phones open the native share sheet (WhatsApp, Messages...); desktops copy the link
+  if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+    try {
+      return await navigator.share({ title: "SmartBnB", text, url: link });
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(link);
+    copied.value = true;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copied.value = false), 2000);
+  } catch {
+    window.prompt("Copy this link:", link);
+  }
+}
+
+async function evaluate(fromUrl, { updateAddress = true } = {}) {
   if (fromUrl) url.value = fromUrl;
   if (!url.value) return;
   loading.value = true;
@@ -208,9 +264,14 @@ async function evaluate(fromUrl) {
     const data = await apiPost("/score", { airbnbUrl: url.value });
     if (!data?.ok) throw new Error("Evaluation failed");
     result.value = data;
+    if (updateAddress && listingFromAddress() !== String(data.listing_id)) {
+      history.pushState(null, "", shareUrl(data.listing_id));
+    }
     scrollToResult();
   } catch (e) {
     console.error(e);
+    // The address must not keep pointing to a listing that is no longer shown
+    if (updateAddress && listingFromAddress()) history.pushState(null, "", window.location.pathname);
     error.value = scoreErrorMessage(e.status);
   } finally {
     loading.value = false;
@@ -391,12 +452,36 @@ h1 {
 .analysis .con { background: #F8EEDC; border-color: var(--mid); }
 .analysis .fine { margin-top: 16px; }
 
-.res-link {
-  display: inline-block;
+.res-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
   margin-top: 28px;
+}
+.res-link {
   color: var(--lake);
   font-weight: 600;
   text-underline-offset: 3px;
+}
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.share-btn:hover { border-color: var(--ink); }
+.share-btn svg {
+  width: 16px; height: 16px;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
 }
 
 @media (max-width: 960px) {
