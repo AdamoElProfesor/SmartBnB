@@ -67,11 +67,18 @@ on InsideAirbnb keeping its archives online. `--fetch` and `--dates` save new do
 so commit them after loading. By default only scrapes missing from the
 database are added, so the history is never lost.
 
-Before a download is saved, the columns that identify a host as a person
-(`host_name`, `host_about`, `host_id`, profile URLs and pictures, location...,
-see `HOST_PERSONAL_COLS`) are removed: the loader never uses them and this
-folder is public (data minimisation). Snapshots saved before September 2026
-still contain them.
+This folder is public, so the snapshots only keep the 25 columns the loader
+reads (`PUBLISHED_COLS` in `load_data.py`), out of about 90 in an Inside
+Airbnb file (data minimisation). It is an allow list: host names, host
+profiles, the free text written by hosts (descriptions, which often name
+them) and any column Inside Airbnb adds later are never published.
+Downloads are minimized before they are saved, and CI fails if a file in
+`data/` holds another column:
+
+```bash
+python load_data.py --check      # list the files with unpublished columns
+python load_data.py --minimize   # rewrite them with PUBLISHED_COLS only
+```
 
 Prices below 5 CHF are treated as missing: the Swiss scrapes since June 2026
 ship a broken price column. `current_prices` holds each listing's newest valid
