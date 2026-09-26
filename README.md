@@ -11,6 +11,7 @@ https://github.com/user-attachments/assets/e4382435-9a17-4f5f-85fb-becbc3c5df38
 ## What it does
 
 - **Check a listing.** Paste a link like `https://www.airbnb.ch/rooms/53584592`
+  (or a share link from the Airbnb app)
   and get a SmartScore out of 100, the nightly price against the median of the
   same room type in the same neighbourhood, the rating, review activity and
   key amenities.
