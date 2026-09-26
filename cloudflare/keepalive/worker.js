@@ -2,9 +2,8 @@
 // never sleeps (no cold start for visitors) and the Supabase project sees
 // regular queries (free projects pause after 7 days without activity).
 //
-// /api/histogram is small and runs a real DB query. Once GET /api/health is
-// deployed on the backend, PING_URL can switch to it.
-const PING_URL = "https://www.smartbnb.ch/api/histogram";
+// /api/health runs SELECT 1 on the database and is never cached.
+const PING_URL = "https://www.smartbnb.ch/api/health";
 const TIMEOUT_MS = 60_000;
 
 async function ping() {
