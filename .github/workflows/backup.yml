@@ -33,7 +33,7 @@ jobs:
           FILE="smartbnb-public-$(date -u +%Y%m%d-%H%M).dump"
           echo "FILE=${FILE}" >> "$GITHUB_ENV"
           mkdir -p backup
-          docker run --rm -e BACKUP_DATABASE_URL -v "$PWD/backup:/backup" postgres:17 \
+          docker run --rm -e BACKUP_DATABASE_URL -v "$PWD/backup:/backup" postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f \
             sh -c 'pg_dump "$BACKUP_DATABASE_URL" --schema=public --format=custom --compress=9 --no-owner --no-privileges --file="/backup/'"${FILE}"'"'
 
       - name: Check the dump
@@ -45,7 +45,7 @@ jobs:
             echo "::error::Dump is suspiciously small (${SIZE} bytes)"
             exit 1
           fi
-          docker run --rm -v "$PWD/backup:/backup" postgres:17 \
+          docker run --rm -v "$PWD/backup:/backup" postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f \
             pg_restore --list "/backup/${FILE}" > toc.txt
           echo "Tables in dump: $(grep -c ' TABLE DATA ' toc.txt)"
           echo "### Backup ${FILE}: ${SIZE} bytes, $(grep -c ' TABLE DATA ' toc.txt) tables" >> "$GITHUB_STEP_SUMMARY"
@@ -66,11 +66,71 @@ jobs:
             --output "backup/${FILE}.gpg" "backup/${FILE}" <<< "${BACKUP_PASSPHRASE}"
           rm "backup/${FILE}"
 
+      # A backup only counts once it has been restored: decrypt the uploaded
+      # file (this also proves the passphrase works), restore it into an empty
+      # Postgres and compare the row count of every table with the source.
+      - name: Prove the encrypted dump restores
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          PG_IMAGE: postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+        run: |
+          set -euo pipefail
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --decrypt --output restore.dump "backup/${FILE}.gpg" <<< "${BACKUP_PASSPHRASE}"
+
+          docker run -d --name restore -e POSTGRES_PASSWORD=restore "${PG_IMAGE}" > /dev/null
+          for i in $(seq 1 30); do
+            docker exec restore pg_isready -U postgres -q && break
+            sleep 2
+          done
+          docker cp restore.dump restore:/tmp/restore.dump
+          rm restore.dump
+          docker exec restore pg_restore -U postgres -d postgres --no-owner --no-privileges /tmp/restore.dump \
+            || echo "::warning::pg_restore reported errors (row counts below decide)"
+
+          # Exact row count of every table in the public schema
+          COUNTS="SELECT table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint
+                  FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY 1"
+          docker run --rm -e BACKUP_DATABASE_URL "${PG_IMAGE}" \
+            psql "$BACKUP_DATABASE_URL" -AtF ' ' -c "$COUNTS" > source.txt
+          docker exec restore psql -U postgres -d postgres -AtF ' ' -c "$COUNTS" > restored.txt
+          docker rm -f restore > /dev/null
+
+          # The source can grow between the dump and the count (price
+          # scraper), so the restore may be up to 1 % behind, never more.
+          echo "| Table | Source | Restored |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          while read -r table src; do
+            got=$(awk -v t="$table" '$1 == t { print $2 }' restored.txt)
+            got=${got:-missing}
+            echo "| ${table} | ${src} | ${got} |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$got" = missing ] || [ "$((got * 100))" -lt "$((src * 99))" ]; then
+              echo "::error::${table}: ${got} rows restored, ${src} in the source"
+              status=1
+            fi
+          done < source.txt
+          exit $status
+
       - name: Upload the encrypted dump
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ env.FILE }}.gpg
           path: backup/${{ env.FILE }}.gpg
           retention-days: 30
           compression-level: 0 # already compressed by pg_dump
           if-no-files-found: error
+
+      # Dead man's switch: healthchecks.io (or any URL pinged on success)
+      # emails when the ping stops arriving, which also catches the case where
+      # GitHub disables this schedule after 60 days without repository activity.
+      - name: Ping the backup monitor
+        env:
+          BACKUP_HEALTHCHECK_URL: ${{ secrets.BACKUP_HEALTHCHECK_URL }}
+        run: |
+          if [ -n "${BACKUP_HEALTHCHECK_URL}" ]; then
+            curl -fsS -m 10 --retry 3 "${BACKUP_HEALTHCHECK_URL}" > /dev/null
+          else
+            echo "::notice::BACKUP_HEALTHCHECK_URL is not set, no monitor pinged"
+          fi
