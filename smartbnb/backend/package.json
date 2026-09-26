@@ -9,14 +9,14 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
-    "supertest": "^7.1.4"
+    "supertest": "^7.3.0"
   },
   "dependencies": {
-    "dotenv": "^17.2.1",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
-    "openai": "^5.17.0",
-    "pg": "^8.16.3"
+    "openai": "^5.23.2",
+    "pg": "^8.23.0"
   }
 }
