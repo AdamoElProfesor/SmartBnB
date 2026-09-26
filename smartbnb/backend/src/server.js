@@ -7,7 +7,8 @@ const apiApp = require("./app");
 
 /**
  * Security headers. The CSP lists every third party the frontend uses:
- * Google Fonts, OpenStreetMap tiles (Leaflet) and the youtube-nocookie demo.
+ * Cloudflare Web Analytics, OpenStreetMap tiles (Leaflet) and the
+ * youtube-nocookie demo. The font is self-hosted.
  * Leaflet writes style attributes in marker HTML, hence 'unsafe-inline' for
  * styles only; scripts stay 'self'.
  * @returns {import('express').RequestHandler}
@@ -19,8 +20,8 @@ function securityHeaders() {
       directives: {
         "default-src": ["'self'"],
         "script-src": ["'self'", "https://static.cloudflareinsights.com"],
-        "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        "font-src": ["'self'", "data:", "https://fonts.gstatic.com"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "font-src": ["'self'", "data:"],
         "img-src": ["'self'", "data:", "https://tile.openstreetmap.org"],
         "connect-src": ["'self'", "https://cloudflareinsights.com"],
         "frame-src": ["https://www.youtube-nocookie.com"],
