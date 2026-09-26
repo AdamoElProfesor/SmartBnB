@@ -1,0 +1,117 @@
+name: Data refresh
+
+# Weekly run of the data pipeline (data/db/load_data.py, Write-Audit-Publish):
+# download the newest Inside Airbnb snapshot, load it, recompute prices and
+# stats, audit the result (data/db/quality.py) and publish only if no
+# blocking check fails. Each run is logged in the etl_runs table.
+#
+# The run fails, and GitHub emails the repository owner, when the load is
+# blocked or crashes, and also when it is published with warnings.
+# A new snapshot file is committed to data/ through a pull request that is
+# merged once "Build + Tests" passes. Details: docs/operations.md.
+on:
+  schedule:
+    - cron: "23 5 * * 1" # Mondays 05:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write      # push the snapshot branch
+  pull-requests: write # open and merge its pull request
+  actions: write       # start CI on it (see below)
+  checks: read
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # smartbnb_loader role (data/db/roles.sql): it can rebuild the listing
+      # and stats tables, not drop them nor touch the collected prices
+      - name: Load, audit and publish
+        id: load
+        env:
+          DATABASE_URL: ${{ secrets.LOADER_DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::The LOADER_DATABASE_URL secret is not set"
+            exit 1
+          fi
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet -r data/db/requirements.txt
+          /tmp/venv/bin/python data/db/load_data.py --fetch --trigger github-actions 2>&1 | tee load.log
+          code=${PIPESTATUS[0]}
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Data refresh"
+            echo '```'
+            grep -v 'csv.gz: ' load.log | tail -60
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 0 published, 2 published with warnings, anything else blocked or failed
+          [ "${code}" = 0 ] || [ "${code}" = 2 ]
+
+      - name: Commit the new snapshot through a pull request
+        if: steps.load.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          new=$(git status --porcelain -- 'data/*.csv.gz' | awk '{print $2}')
+          if [ -z "${new}" ]; then
+            echo "No new snapshot to commit"
+            exit 0
+          fi
+          date=$(basename "$(echo "${new}" | head -1)" .csv.gz)
+          branch="data/snapshot-${date}"
+          title="chore: add the ${date} Inside Airbnb snapshot"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${branch}"
+          git add -- ${new}
+          git commit -m "${title}"
+          git push --force origin "${branch}"
+          sha=$(git rev-parse HEAD)
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          gh_api() { curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "$@"; }
+
+          pr=$(gh_api "${api}/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}:${branch}" | jq -r '.[0].number // empty')
+          if [ -z "${pr}" ]; then
+            body="Loaded and audited by the [Data refresh run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}). Merged automatically once Build + Tests passes."
+            pr=$(gh_api -X POST "${api}/pulls" \
+              -d "$(jq -n --arg h "${branch}" --arg t "${title}" --arg b "${body}" '{head: $h, base: "main", title: $t, body: $b}')" \
+              | jq -r .number)
+          fi
+          echo "Pull request #${pr}"
+
+          # A pull request opened with the workflow token does not trigger
+          # other workflows, so CI is started by hand on the branch
+          gh_api -X POST "${api}/actions/workflows/ci.yml/dispatches" -d "{\"ref\": \"${branch}\"}"
+          for i in $(seq 1 45); do
+            sleep 20
+            state=$(gh_api "${api}/commits/${sha}/check-runs?check_name=Build%20%2B%20Tests" \
+              | jq -r '.check_runs[0] | "\(.status) \(.conclusion)"')
+            case "${state}" in
+              "completed success") break ;;
+              completed*) echo "::error::Build + Tests failed on pull request #${pr}"; exit 1 ;;
+            esac
+          done
+          [ "${state}" = "completed success" ] || { echo "::error::Build + Tests did not finish on #${pr}"; exit 1; }
+
+          gh_api -X PUT "${api}/pulls/${pr}/merge" -d '{"merge_method": "squash"}'
+          echo "Snapshot ${date} merged through #${pr}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Alert on warnings
+        if: steps.load.outputs.code == '2'
+        run: |
+          echo "::error::The data was published with warnings, see the run summary"
+          exit 1
