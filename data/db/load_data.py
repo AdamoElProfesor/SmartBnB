@@ -351,7 +351,8 @@ FROM stage_amenities sa JOIN fresh f ON f.id = sa.airbnb_id
 
 DERIVED_SQL = """
 TRUNCATE public.airbnb_points, public.current_prices,
-         public.neighbourhood_room_type_stats, public.neighbourhood_stats;
+         public.neighbourhood_room_type_stats, public.neighbourhood_stats,
+         public.price_trends;
 
 -- Latest plausible price of each listing, from the Inside Airbnb snapshots
 -- or from data/prices/scrape_prices.py (price_observations), whichever is
@@ -418,6 +419,52 @@ WHERE s.last_scraped >= (SELECT MAX(last_scraped) FROM public.airbnb_snapshots)
                         - make_interval(months => %(months)s)
   AND v.neighbourhood_cleansed IS NOT NULL
 GROUP BY 1;
+
+-- Price trend per region ("Prices this year" on the site): median price in
+-- the first priced scrape of the 12 months before the latest priced scrape,
+-- against the latest one. Computed here once per load instead of on every
+-- request. No row when a single scrape has prices: nothing to compare.
+INSERT INTO public.price_trends
+  (region, start_date, end_date, start_median, end_median, pct)
+WITH priced AS (
+  SELECT scrape_id, MIN(last_scraped) AS scraped_on
+  FROM public.airbnb_snapshots
+  WHERE price IS NOT NULL
+  GROUP BY scrape_id
+),
+bounds AS (
+  SELECT
+    (SELECT MIN(scrape_id) FROM priced
+      WHERE scraped_on >= (SELECT MAX(scraped_on) FROM priced) - interval '12 months') AS m_min,
+    (SELECT MAX(scrape_id) FROM priced) AS m_max
+),
+agg AS (
+  SELECT
+    COALESCE(v.neighbourhood_group_cleansed, 'Unknown') AS region,
+    s.scrape_id,
+    -- double precision: some databases store price as real, and the
+    -- percentage must not be computed at real precision
+    percentile_disc(0.5) WITHIN GROUP (ORDER BY s.price)::double precision AS median
+  FROM public.airbnb_snapshots s
+  JOIN public.airbnb_vaud v ON v.id = s.listing_id
+  WHERE s.price IS NOT NULL
+    AND s.scrape_id IN (SELECT m_min FROM bounds UNION SELECT m_max FROM bounds)
+  GROUP BY 1, 2
+)
+SELECT
+  a_min.region,
+  p_min.scraped_on,
+  p_max.scraped_on,
+  a_min.median,
+  a_max.median,
+  CASE WHEN a_min.median > 0
+       THEN (a_max.median - a_min.median) / a_min.median * 100.0 END
+FROM bounds b
+JOIN agg a_min ON a_min.scrape_id = b.m_min
+JOIN agg a_max ON a_max.scrape_id = b.m_max AND a_max.region = a_min.region
+JOIN priced p_min ON p_min.scrape_id = b.m_min
+JOIN priced p_max ON p_max.scrape_id = b.m_max
+WHERE b.m_min < b.m_max;
 """
 
 
@@ -543,7 +590,7 @@ def write(cur, args):
                      public.airbnb_amenities, public.airbnb_points,
                      public.current_prices,
                      public.neighbourhood_room_type_stats,
-                     public.neighbourhood_stats
+                     public.neighbourhood_stats, public.price_trends
         """)
         known = set()
     else:
@@ -570,7 +617,8 @@ def write(cur, args):
                                       "max_price": quality.MAX_NIGHTLY_PRICE})
 
     for table in ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities", "airbnb_points",
-                  "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats"):
+                  "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats",
+                  "price_trends"):
         cur.execute(f"SELECT COUNT(*) FROM public.{table}")
         print(f"  {table}: {cur.fetchone()[0]} rows")
     return new_scrapes

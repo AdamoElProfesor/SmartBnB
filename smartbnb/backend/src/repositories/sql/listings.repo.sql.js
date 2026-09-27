@@ -27,26 +27,23 @@ exports.search = async ({
     : 10;
   const rows = await all(
     `
-    WITH latest AS (
-      SELECT *
-      FROM (
-        SELECT
-          s.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY s.listing_id
-            ORDER BY s.last_scraped DESC NULLS LAST, s.scrape_id DESC
-          ) AS rn
-        FROM public.airbnb_snapshots s
-      ) x
-      WHERE x.rn = 1
+    -- A listing still active has a row in the latest scrape, and that row is
+    -- its newest one: filter on it directly (index on scrape_id) instead of
+    -- ranking every snapshot of the history.
+    WITH last_scrape AS (
+      SELECT MAX(scrape_id) AS scrape_id FROM public.airbnb_snapshots
+    ),
+    latest AS (
+      SELECT s.*
+      FROM public.airbnb_snapshots s
+      JOIN last_scrape ls ON ls.scrape_id = s.scrape_id
     ),
     -- Mean rating of the listings in the latest scrape: the prior of the
     -- Bayesian average.
     prior AS (
       SELECT AVG(review_scores_rating) AS mean_rating
-      FROM public.airbnb_snapshots
-      WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)
-        AND review_scores_rating IS NOT NULL
+      FROM latest
+      WHERE review_scores_rating IS NOT NULL
         AND number_of_reviews > 0
     )
     SELECT
@@ -69,7 +66,6 @@ exports.search = async ({
     LEFT JOIN public.current_prices cp ON cp.listing_id = v.id
     CROSS JOIN prior
     WHERE COALESCE(l.review_scores_rating, 0) >= $1
-      AND l.scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)
       AND ($2 <> 'price_asc' OR l.minimum_nights IS NULL OR l.minimum_nights < $4)
     ORDER BY
       CASE WHEN $2 = 'price_asc'   THEN cp.price END ASC  NULLS LAST,
