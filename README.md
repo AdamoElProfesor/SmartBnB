@@ -83,10 +83,11 @@ archives online. New snapshots are downloaded with
 `python data/db/load_data.py --fetch`. Only the columns SmartBnB uses are
 kept: no host names, host profiles or texts written by hosts.
 
-Since June 2026 the Inside Airbnb snapshots for Switzerland no longer contain
-usable prices. Current prices are collected from Airbnb once a month instead,
-see [data/prices](data/prices/README.md). Each result shows the date its price
-was seen.
+From June to September 2026 the Inside Airbnb snapshots for Switzerland had a
+broken price column; Inside Airbnb republished them with corrected prices on
+2026-09-26 and they were reloaded. Current prices are also collected from
+Airbnb once a month, see [data/prices](data/prices/README.md), and each result
+uses the newest of the two. Each result shows the date its price was seen.
 
 ## Documentation
 
