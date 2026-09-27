@@ -4,8 +4,8 @@
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `.github/workflows/ci.yml` | pull request to `main`, push to `main`, on demand | Frontend lint, tests and build, backend tests, data pipeline tests, check that `data/*.csv.gz` holds only published columns |
-| `.github/workflows/data-refresh.yml` | every Monday | Loads, audits and publishes the data, commits a new snapshot through a pull request ([operations.md](operations.md#data-refresh)) |
+| `.github/workflows/ci.yml` | pull request to `main`, push to `main`, on demand | Frontend lint, tests and build, backend tests, data pipeline tests, check that no data file is committed |
+| `.github/workflows/data-refresh.yml` | every Monday | Loads, audits and publishes the data, archives a new snapshot in the private `SmartBnB-data` repository ([operations.md](operations.md#data-refresh)) |
 | `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer |
 | `.github/workflows/backup.yml` | every day | Encrypted `pg_dump` of the database, kept 30 days |
 
