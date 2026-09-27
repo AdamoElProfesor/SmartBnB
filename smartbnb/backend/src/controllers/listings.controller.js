@@ -1,5 +1,6 @@
 const service = require("../services/listings.service");
 const { parseListingId, parseSearchQuery } = require("../utils/validation");
+const { setReadCacheHeaders } = require("../utils/cache");
 
 /**
  * Search listings based on query parameters and return JSON; 400 on invalid parameters
@@ -11,6 +12,7 @@ const { parseListingId, parseSearchQuery } = require("../utils/validation");
 exports.search = async (req, res, next) => {
   try {
     const data = await service.search(parseSearchQuery(req.query));
+    setReadCacheHeaders(res);
     res.json(data);
   } catch (e) {
     next(e);
@@ -30,6 +32,7 @@ exports.getById = async (req, res, next) => {
     if (!data) {
       return res.status(404).json({ ok: false, error: "Listing not found" });
     }
+    setReadCacheHeaders(res);
     res.json(data);
   } catch (e) {
     next(e);

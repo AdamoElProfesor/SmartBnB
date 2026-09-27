@@ -14,6 +14,12 @@ All endpoints live under `/api` and answer JSON. Errors share one shape:
 - `500 Internal Server Error` -> `"Internal server error"` (the stack is only
   added outside production)
 
+The data only changes when a snapshot is loaded, so the successful responses
+of the read endpoints (`GET /api/listings`, `/api/listings/:id`,
+`/api/heatmap`, `/api/histogram`) carry `Cache-Control: public, max-age=600`:
+browsers and CDNs reuse them for 10 minutes (`READ_CACHE_TTL_MS`). Errors are
+never cached.
+
 ## Health
 
 ### **`GET /api/health`**
@@ -191,7 +197,8 @@ minutes (`READ_CACHE_TTL_MS`), since it only changes when a snapshot is loaded.
 
 Returns the change of the median nightly price per region, in percent, between
 the first priced scrape of the last 12 months and the latest priced scrape.
-Cached in memory like the heatmap.
+The values are precomputed at each load (`price_trends` table, see
+`data/db/load_data.py`) and cached in memory like the heatmap.
 
 ### Response
 
