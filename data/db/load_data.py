@@ -442,7 +442,9 @@ agg AS (
   SELECT
     COALESCE(v.neighbourhood_group_cleansed, 'Unknown') AS region,
     s.scrape_id,
-    percentile_disc(0.5) WITHIN GROUP (ORDER BY s.price) AS median
+    -- double precision: some databases store price as real, and the
+    -- percentage must not be computed at real precision
+    percentile_disc(0.5) WITHIN GROUP (ORDER BY s.price)::double precision AS median
   FROM public.airbnb_snapshots s
   JOIN public.airbnb_vaud v ON v.id = s.listing_id
   WHERE s.price IS NOT NULL
