@@ -32,3 +32,9 @@ def test_minimize_is_idempotent():
 def test_minimize_pads_short_rows():
     out = rows(load_data.minimize_csv(b"id,name,price\n1,Studio\n"))
     assert out[1] == ["1", "Studio", ""]
+
+
+def test_scrape_ids_reads_the_files_to_reload(tmp_path, monkeypatch):
+    monkeypatch.setattr(load_data, "DATA_DIR", tmp_path)
+    load_data.write_snapshot(tmp_path / "2026-06-15.csv.gz", b"id,scrape_id\n1,20260615\n2,20260615\n")
+    assert load_data.scrape_ids(["2026-06-15"]) == {20260615}
