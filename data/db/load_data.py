@@ -1,8 +1,10 @@
 """Load InsideAirbnb snapshots of Vaud into the SmartBnB database.
 
-Snapshots are read from data/*.csv.gz, all kept in git so the database can be
-rebuilt from a clone. Downloaded snapshots are saved there too, to be
-committed, with only the columns the loader uses (PUBLISHED_COLS). By
+Snapshots are read from data/snapshots/*.csv.gz, a clone of the private
+SmartBnB-data repository (the Inside Airbnb data policies ask not to
+republish the data), so the database can be rebuilt from it. Downloaded
+snapshots are saved there too, to be committed to that repository, with only
+the columns the loader uses (PUBLISHED_COLS). By
 default only scrapes that are not in the database yet are added, so the
 history is never lost. Everything runs in one transaction, following
 Write-Audit-Publish:
@@ -21,7 +23,7 @@ Usage:
   python load_data.py --dates 2025-07-04 2025-08-03   # download these first
   python load_data.py --full          # wipe the data tables and reload all
   python load_data.py --init          # recreate schema + seed, then --full
-  python load_data.py --minimize      # drop unused columns from data/*.csv.gz
+  python load_data.py --minimize      # drop unused columns from the snapshots
   python load_data.py --check         # fail if a file has unused columns
   python load_data.py --dry-run       # load and audit, then roll back
 
@@ -45,7 +47,7 @@ from psycopg.types.json import Jsonb
 import quality
 
 HERE = Path(__file__).resolve().parent
-DATA_DIR = HERE.parent
+DATA_DIR = HERE.parent / "snapshots"
 
 INSIDE_AIRBNB_PAGE = "https://insideairbnb.com/get-the-data/"
 SNAPSHOT_URL = "https://data.insideairbnb.com/switzerland/vd/vaud/{date}/data/listings.csv.gz"
@@ -119,11 +121,11 @@ def http_get(url):
     return body
 
 
-# The only columns kept in data/*.csv.gz, which is public: the ones this
-# loader reads. It is an allow list rather than a list of columns to remove,
-# so host names, host descriptions, free text written by hosts (which often
-# names them) and any column Inside Airbnb adds later never get published
-# (data minimisation, GDPR / Swiss nLPD).
+# The only columns kept in the snapshot files: the ones this loader reads.
+# It is an allow list rather than a list of columns to remove, so host names,
+# host descriptions, free text written by hosts (which often names them) and
+# any column Inside Airbnb adds later are never stored (data minimisation,
+# GDPR / Swiss nLPD).
 PUBLISHED_COLS = frozenset(
     [*LISTING_COLS, *(c for c in SNAPSHOT_COLS if c != "listing_id"), "amenities"]
 )
@@ -146,7 +148,7 @@ def minimize_csv(csv_bytes):
 def snapshot_files():
     files = sorted(DATA_DIR.glob("*.csv.gz"))
     if not files:
-        raise SystemExit(f"No snapshot found in {DATA_DIR}")
+        raise SystemExit(f"No snapshot found in {DATA_DIR} (clone SmartBnB-data there)")
     return files
 
 
@@ -519,8 +521,8 @@ def main():
     parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
     parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
-    parser.add_argument("--minimize", action="store_true", help="drop the unpublished columns from data/*.csv.gz, then stop")
-    parser.add_argument("--check", action="store_true", help="fail if a file in data/ has unpublished columns (no database needed)")
+    parser.add_argument("--minimize", action="store_true", help="drop the unpublished columns from the snapshot files, then stop")
+    parser.add_argument("--check", action="store_true", help="fail if a snapshot file has unpublished columns (no database needed)")
     parser.add_argument("--dry-run", action="store_true", help="load and audit, then roll back instead of publishing")
     parser.add_argument("--trigger", default="manual", help="who started the run, stored in etl_runs (default manual)")
     args = parser.parse_args()
