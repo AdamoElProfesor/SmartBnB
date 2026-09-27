@@ -1,8 +1,9 @@
 # Price collection
 
-Since June 2026, the Inside Airbnb snapshots for Switzerland have no usable
-prices (every value is below 1 CHF). `scrape_prices.py` collects current
-nightly prices of the Vaud listings from Airbnb instead, once a month.
+From June to September 2026, the Inside Airbnb snapshots for Switzerland had
+no usable prices (every value was below 1 CHF) until Inside Airbnb republished
+them. `scrape_prices.py` collects current nightly prices of the Vaud listings
+from Airbnb directly, once a month, so prices stay fresh between snapshots.
 
 ## Pipeline
 

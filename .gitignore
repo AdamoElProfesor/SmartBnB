@@ -9,6 +9,11 @@ node_modules
 *.pem
 *.key
 
+# Inside Airbnb snapshots: kept in the private SmartBnB-data repository,
+# cloned into data/snapshots (the data policies ask not to republish them)
+data/snapshots/
+data/*.csv.gz
+
 # Database dumps and backups
 *.dump
 *.part

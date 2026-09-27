@@ -50,7 +50,7 @@ flowchart LR
 |---|---|
 | [`smartbnb/frontend`](smartbnb/frontend) | Vue 3 + Vite app, Leaflet maps on OpenStreetMap |
 | [`smartbnb/backend`](smartbnb/backend) | Node.js + Express API, also serves the built app |
-| [`data`](data) | Inside Airbnb snapshots and the loader that fills the database |
+| [`data`](data) | Loader that fills the database from the Inside Airbnb snapshots, price collection |
 | [`cloudflare`](cloudflare) | Workers: domain relay, AI endpoint, keep-alive |
 | [`docs`](docs) | Guides for running, deploying and operating the app |
 
@@ -74,18 +74,20 @@ production setup: [docs/deployment.md](docs/deployment.md).
 
 Listing data comes from [Inside Airbnb](https://insideairbnb.com/) and is
 licensed under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Every monthly
-snapshot since July 2024 is in [`data/`](data), compressed, so the database can
-be rebuilt from a clone without depending on Inside Airbnb keeping its
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The
+[Inside Airbnb data policies](https://insideairbnb.com/data-policies/) ask
+not to republish the data, so this repository holds none of it: every
+monthly snapshot since July 2024 is archived in a private repository, so the
+database can be rebuilt without depending on Inside Airbnb keeping its
 archives online. New snapshots are downloaded with
-`python data/db/load_data.py --fetch` and committed. Only the columns
-SmartBnB uses are kept: no host names, host profiles or texts written by
-hosts.
+`python data/db/load_data.py --fetch`. Only the columns SmartBnB uses are
+kept: no host names, host profiles or texts written by hosts.
 
-Since June 2026 the Inside Airbnb snapshots for Switzerland no longer contain
-usable prices. Current prices are collected from Airbnb once a month instead,
-see [data/prices](data/prices/README.md). Each result shows the date its price
-was seen.
+From June to September 2026 the Inside Airbnb snapshots for Switzerland had a
+broken price column; Inside Airbnb republished them with corrected prices on
+2026-09-26 and they were reloaded. Current prices are also collected from
+Airbnb once a month, see [data/prices](data/prices/README.md), and each result
+uses the newest of the two. Each result shows the date its price was seen.
 
 ## Documentation
 
