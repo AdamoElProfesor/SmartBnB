@@ -7,6 +7,7 @@
 
 DROP TABLE IF EXISTS
   public.ai_analyses,
+  public.price_trends,
   public.current_prices,
   public.neighbourhood_stats,
   public.neighbourhood_room_type_stats,
@@ -121,6 +122,17 @@ CREATE TABLE public.neighbourhood_stats (
   neighbourhood          text PRIMARY KEY,
   avg_reviews            double precision,  -- mean review score (0-5)
   avg_reviews_per_month  double precision   -- mean reviews_per_month
+);
+
+-- Median price change per region over the last 12 months of priced scrapes
+-- (GET /api/histogram): first priced scrape of the window against the latest
+CREATE TABLE public.price_trends (
+  region        text PRIMARY KEY,
+  start_date    date NOT NULL,
+  end_date      date NOT NULL,
+  start_median  double precision NOT NULL,
+  end_median    double precision NOT NULL,
+  pct           double precision   -- NULL when start_median is 0
 );
 
 -- -----------------------------------------------------------------
@@ -240,6 +252,7 @@ ALTER TABLE public.airbnb_points                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_room_type_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_stats           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_trends                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.raw_airbnb_vaud               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
@@ -283,7 +296,8 @@ BEGIN
     GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
       public.airbnb_vaud, public.airbnb_snapshots, public.airbnb_amenities,
       public.airbnb_points, public.current_prices,
-      public.neighbourhood_room_type_stats, public.neighbourhood_stats
+      public.neighbourhood_room_type_stats, public.neighbourhood_stats,
+      public.price_trends
       TO smartbnb_loader;
     GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
     FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
@@ -293,7 +307,7 @@ BEGIN
     END LOOP;
     FOREACH t IN ARRAY ARRAY['airbnb_vaud', 'airbnb_snapshots', 'airbnb_amenities',
                              'airbnb_points', 'current_prices', 'neighbourhood_room_type_stats',
-                             'neighbourhood_stats', 'etl_runs'] LOOP
+                             'neighbourhood_stats', 'price_trends', 'etl_runs'] LOOP
       EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_write ON public.%I', t);
       EXECUTE format(
         'CREATE POLICY smartbnb_loader_write ON public.%I FOR ALL TO smartbnb_loader USING (true) WITH CHECK (true)', t);
