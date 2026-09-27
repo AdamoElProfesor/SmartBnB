@@ -38,4 +38,14 @@ function cached(fn, ttlMs) {
 // Read endpoints are cached for READ_CACHE_TTL_MS (default 10 minutes)
 const READ_CACHE_TTL_MS = Number(process.env.READ_CACHE_TTL_MS) || 10 * 60 * 1000;
 
-module.exports = { cached, READ_CACHE_TTL_MS };
+/**
+ * Lets browsers and shared caches (CDN) reuse a successful read response for
+ * as long as the server cache keeps it, so repeat visits do not reach the API.
+ * Called on success only: errors must not be cached.
+ * @param {import('express').Response} res
+ */
+function setReadCacheHeaders(res) {
+  res.set("Cache-Control", `public, max-age=${Math.round(READ_CACHE_TTL_MS / 1000)}`);
+}
+
+module.exports = { cached, READ_CACHE_TTL_MS, setReadCacheHeaders };

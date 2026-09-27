@@ -98,6 +98,13 @@ describe("Listings endpoints", () => {
     expect(listingService.search).toHaveBeenCalledWith({});
   });
 
+  test("GET /listings lets browsers and CDNs cache the response", async () => {
+    listingService.search.mockResolvedValue([]);
+
+    const response = await request(app).get("/api/listings");
+    expect(response.headers["cache-control"]).toBe("public, max-age=600");
+  });
+
   test("GET /listings/:id return a listing by id", async () => {
     const exceptedResult = [
       {
@@ -151,6 +158,7 @@ describe("Listings endpoints", () => {
     const response = await request(app).get("/api/listings/999999999");
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ ok: false, error: "Listing not found" });
+    expect(response.headers["cache-control"]).toBeUndefined();
     expect(listingService.getById).toHaveBeenCalledWith("999999999");
   });
 });

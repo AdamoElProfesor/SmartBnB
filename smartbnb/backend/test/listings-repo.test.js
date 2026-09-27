@@ -20,6 +20,14 @@ describe("listings repository search()", () => {
     );
   });
 
+  test("reads only the latest scrape instead of ranking the whole history", async () => {
+    await repo.search({});
+    const [sql] = all.mock.calls[0];
+    expect(sql).not.toMatch(/ROW_NUMBER/);
+    expect(sql).toMatch(/SELECT MAX\(scrape_id\) AS scrape_id FROM public\.airbnb_snapshots/);
+    expect(sql).toMatch(/JOIN last_scrape ls ON ls\.scrape_id = s\.scrape_id/);
+  });
+
   test("returns the total number of reviews for each listing", async () => {
     await repo.search({ sort: "rating_desc" });
     const [sql] = all.mock.calls[0];
