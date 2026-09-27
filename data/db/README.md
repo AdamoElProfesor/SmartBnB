@@ -88,8 +88,11 @@ python load_data.py --check      # list the files with unpublished columns
 python load_data.py --minimize   # rewrite them with PUBLISHED_COLS only
 ```
 
-Prices below 5 CHF are treated as missing: the Swiss scrapes since June 2026
-ship a broken price column. `current_prices` holds each listing's newest valid
+Prices below 5 CHF are treated as missing: the Swiss scrapes of June to
+September 2026 first shipped a broken price column. Inside Airbnb republished
+them with corrected prices; a republished file keeps its scrape id, so it is
+loaded again with `python load_data.py --reload <date> ...`, which replaces
+that scrape in the same transaction as the audit. `current_prices` holds each listing's newest valid
 price, from the snapshots or from the monthly price collection in
 [`data/prices`](../prices/README.md), and the neighbourhood medians use one
 price per listing.
