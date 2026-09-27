@@ -67,7 +67,8 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_loader;
 GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
   public.airbnb_vaud, public.airbnb_snapshots, public.airbnb_amenities,
   public.airbnb_points, public.current_prices,
-  public.neighbourhood_room_type_stats, public.neighbourhood_stats
+  public.neighbourhood_room_type_stats, public.neighbourhood_stats,
+  public.price_trends
   TO smartbnb_loader;
 GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
 
@@ -110,7 +111,7 @@ BEGIN
   END LOOP;
   FOREACH t IN ARRAY ARRAY['airbnb_vaud', 'airbnb_snapshots', 'airbnb_amenities',
                            'airbnb_points', 'current_prices', 'neighbourhood_room_type_stats',
-                           'neighbourhood_stats', 'etl_runs'] LOOP
+                           'neighbourhood_stats', 'price_trends', 'etl_runs'] LOOP
     EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_write ON public.%I', t);
     EXECUTE format(
       'CREATE POLICY smartbnb_loader_write ON public.%I FOR ALL TO smartbnb_loader USING (true) WITH CHECK (true)', t);
