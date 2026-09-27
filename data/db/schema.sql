@@ -93,6 +93,11 @@ CREATE TABLE public.airbnb_points (
   total_points  integer NOT NULL
 );
 
+-- The score reads MIN/MAX(total_points) on each request: the index answers
+-- both without scanning the table
+CREATE INDEX airbnb_points_total_idx
+  ON public.airbnb_points (total_points);
+
 -- -----------------------------------------------------------------
 -- Pre-computed data, rebuilt by load_data.py
 -- -----------------------------------------------------------------
