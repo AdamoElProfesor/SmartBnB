@@ -23,6 +23,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type |
 | `neighbourhood_stats` | Average review score and reviews per month per neighbourhood |
 | `current_prices` | Latest plausible price per listing (last 6 months) |
+| `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
 | `etl_runs` | One row per run of `load_data.py`: metrics and quality check results |
 | `raw_airbnb_vaud` | Legacy staging table from the old Airflow DAG (not used by `load_data.py`) |
 
