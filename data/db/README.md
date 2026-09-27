@@ -52,12 +52,13 @@ python -m venv .venv
 .venv/Scripts/activate        # Windows (source .venv/bin/activate on macOS/Linux)
 pip install -r requirements.txt
 
+git clone git@github.com:AdamoElProfesor/SmartBnB-data.git ../snapshots   # private
 echo DATABASE_URL=postgresql://... > .env
 python load_data.py --init    # creates the schema, seeds, loads the CSVs
 ```
 
-Then keep it up to date. There is no scheduled pipeline (the old Airflow DAG
-was removed): run the loader by hand when InsideAirbnb publishes a new snapshot.
+Then keep it up to date. The weekly `data-refresh.yml` workflow does it (see
+[operations.md](../../docs/operations.md#data-refresh)), or run the loader by hand:
 
 ```bash
 python load_data.py --fetch                  # download + add the latest InsideAirbnb snapshot
@@ -65,19 +66,22 @@ python load_data.py --dates 2025-07-04 ...   # download + add specific snapshots
 python load_data.py --full                   # wipe and reload every file on disk
 ```
 
-Snapshots come from `data/*.csv.gz`, every month since July 2024. They are all
-kept in git so the database can be rebuilt from a clone, without depending
-on InsideAirbnb keeping its archives online. `--fetch` and `--dates` save new downloads there,
-so commit them after loading. By default only scrapes missing from the
-database are added, so the history is never lost.
+Snapshots come from `data/snapshots/*.csv.gz`, every month since July 2024.
+That folder is a clone of the private `SmartBnB-data` repository, ignored by
+this one: the [Inside Airbnb data policies](https://insideairbnb.com/data-policies/)
+ask not to republish the data, and CI fails if a data file is committed
+here. The archive lets the database be rebuilt without depending on
+Inside Airbnb keeping its archives online (only the last 12 months are free
+to download). `--fetch` and `--dates` save new downloads there, so commit and
+push them in `data/snapshots` after loading. By default only scrapes missing
+from the database are added, so the history is never lost.
 
-This folder is public, so the snapshots only keep the 26 columns the loader
-reads (`PUBLISHED_COLS` in `load_data.py`), out of about 90 in an Inside
-Airbnb file (data minimisation). It is an allow list: host names, host
-profiles, the free text written by hosts (descriptions, which often name
-them) and any column Inside Airbnb adds later are never published.
-Downloads are minimized before they are saved, and CI fails if a file in
-`data/` holds another column:
+The snapshots only keep the 26 columns the loader reads (`PUBLISHED_COLS` in
+`load_data.py`), out of about 90 in an Inside Airbnb file (data
+minimisation). It is an allow list: host names, host profiles, the free text
+written by hosts (descriptions, which often name them) and any column Inside
+Airbnb adds later are never stored. Downloads are minimized before they are
+saved:
 
 ```bash
 python load_data.py --check      # list the files with unpublished columns
