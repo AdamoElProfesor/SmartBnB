@@ -21,6 +21,7 @@ Usage:
   python load_data.py                 # add new scrapes found on disk
   python load_data.py --fetch         # download the latest snapshot first
   python load_data.py --dates 2025-07-04 2025-08-03   # download these first
+  python load_data.py --reload 2026-06-15   # replace a republished file's scrape
   python load_data.py --full          # wipe the data tables and reload all
   python load_data.py --init          # recreate schema + seed, then --full
   python load_data.py --minimize      # drop unused columns from the snapshots
@@ -218,6 +219,18 @@ def fetch_snapshots(dates):
             raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
         write_snapshot(dest, raw)
         print(f"  {date}: downloaded")
+
+
+def scrape_ids(dates):
+    """Scrape ids found in the snapshot files of these dates."""
+    ids = set()
+    for date in dates:
+        path = DATA_DIR / f"{date}.csv.gz"
+        if not path.exists():
+            raise SystemExit(f"  {date}: no file {path.name} to reload")
+        col = pd.read_csv(path, usecols=["scrape_id"])["scrape_id"]
+        ids |= set(pd.to_numeric(col, errors="coerce").dropna().astype(int))
+    return ids
 
 
 def read_csvs():
@@ -518,6 +531,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--fetch", action="store_true", help="download the latest InsideAirbnb snapshot first")
     parser.add_argument("--dates", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="download these snapshots first")
+    parser.add_argument("--reload", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="replace the scrapes of these files, e.g. after Inside Airbnb republished them")
     parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
     parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
     parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
@@ -598,6 +612,14 @@ def write(cur, args):
     else:
         cur.execute("SELECT DISTINCT scrape_id FROM public.airbnb_snapshots")
         known = {row[0] for row in cur.fetchall()}
+        if args.reload:
+            # Republished files keep their scrape id: forget those scrapes so
+            # they are loaded again from the new files, in this transaction
+            reloaded = scrape_ids(args.reload)
+            cur.execute("DELETE FROM public.airbnb_snapshots WHERE scrape_id = ANY(%s)",
+                        (sorted(reloaded),))
+            print(f"Reloading {len(reloaded)} scrape(s): {cur.rowcount} old rows removed")
+            known -= reloaded
 
     print("Reading snapshots...")
     df = read_csvs()
