@@ -1,7 +1,7 @@
 """Collect current nightly prices of the Vaud listings from Airbnb.
 
-Inside Airbnb's Swiss snapshots have no usable prices since June 2026, so this
-script asks Airbnb for prices directly, in two passes, and stores one row per
+Inside Airbnb's Swiss snapshots had no usable prices from June to September
+2026 and only come once a month, so this script asks Airbnb for prices directly, in two passes, and stores one row per
 listing in public.price_observations (the raw layer). load_data.py then turns
 the newest observations into current_prices and the neighbourhood medians.
 
