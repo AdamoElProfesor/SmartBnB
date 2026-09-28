@@ -62,16 +62,24 @@ session pooler), which cannot drop tables or change the collected prices.
 03:17 UTC (and on demand). It runs `pg_dump` 17 from the official `postgres:17`
 image on the `public` schema, in custom format with maximum compression, checks
 that the dump is readable with `pg_restore --list`, encrypts it with GPG
-(AES-256), then proves the encrypted file restores: it decrypts it, restores it
-into an empty Postgres 17 container and compares the row count of every table
-with the source (the run fails if a table is missing or more than 1 % behind).
-The encrypted dump is uploaded as a workflow artifact kept for **30 days**.
+(AES-256) and uploads it as a workflow artifact kept for **30 days**. Then it
+proves the encrypted file restores: it decrypts it, restores it into an empty
+Postgres 17 container and compares the row count of every table and the number
+of RLS policies with the source. The run fails if `pg_restore` reports any
+error, or if a table or policy is missing or more than 1 % behind. The dump is
+uploaded before this test, so a failed test still leaves the day's backup.
+
+The dump's RLS policies name the roles of `data/db/roles.sql`, so the test
+creates them first: when a role is added there, add it to the `CREATE ROLE`
+line of the workflow too, or the next backup fails.
 Artifacts of a public repository can be downloaded by anyone, so the dump is
 never uploaded in clear, and anyone can try to guess the passphrase offline:
 it must be long and random (`openssl rand -base64 32`), never a word or phrase.
 
-It needs two repository secrets. `BACKUP_PASSPHRASE` encrypts the dump: keep a
-copy somewhere safe, without it the backups cannot be read.
+It needs two repository secrets. `BACKUP_PASSPHRASE` encrypts the dump: without
+it the backups cannot be read, so a copy is also kept in the untracked
+`data/db/.env` of the maintainer's machine; keep another one in a password
+manager.
 `BACKUP_DATABASE_URL` is the Supabase **session pooler** URL (port **5432**,
 with `?sslmode=require`). The transaction pooler
 (port 6543) does not work with `pg_dump`.
@@ -79,9 +87,10 @@ with `?sslmode=require`). The transaction pooler
 A failed backup emails the repository owner, like the uptime check. A backup
 that does not run at all (for example when GitHub disables the schedule after
 60 days without activity) sends nothing, so the workflow also pings
-`BACKUP_HEALTHCHECK_URL` (optional secret) after each successful run: create a
-free daily check on [healthchecks.io](https://healthchecks.io) with a grace
-period of a few hours, and it emails when a ping is missing.
+`BACKUP_HEALTHCHECK_URL` after each successful run (a run without the secret
+shows a warning): a free [healthchecks.io](https://healthchecks.io) check with
+a 1 day period and a few hours of grace, which emails when a ping is missing.
+A failed restore test skips the ping, so it alerts twice.
 
 ### Restore
 
