@@ -370,7 +370,7 @@ TRUNCATE public.airbnb_points, public.current_prices,
          public.price_trends;
 
 -- Latest plausible price of each listing, from the Inside Airbnb snapshots
--- or from data/prices/scrape_prices.py (price_observations), whichever is
+-- or from the price scraper (price_observations, see data/prices), whichever is
 -- newer, if seen in the 6 months before the newest price. A price outside
 -- the plausible range (quality.MIN/MAX_NIGHTLY_PRICE) is skipped, so the
 -- listing keeps its previous plausible price.

@@ -166,4 +166,4 @@ Run it once: `schema.sql` (and `load_data.py --init`) gives the grants and
 policies back whenever it recreates the tables. On the Supabase pooler the
 user name is `<role>.<project ref>`; the loader needs the session pooler
 (port 5432). Keep `postgres` for `schema.sql`, `load_data.py --init` and
-`scrape_prices.py`.
+the price scraper.

@@ -136,7 +136,7 @@ CREATE TABLE public.price_trends (
 );
 
 -- -----------------------------------------------------------------
--- Prices collected by data/prices/scrape_prices.py (raw layer): one row
+-- Prices collected by the price scraper (see data/prices, raw layer): one row
 -- per listing and run. The breakdown is kept so the nightly price metric
 -- can be recomputed without collecting again. Not tied to airbnb_vaud:
 -- searches also return listings Inside Airbnb has not recorded yet.
