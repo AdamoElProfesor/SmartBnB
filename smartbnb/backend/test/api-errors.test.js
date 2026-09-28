@@ -102,6 +102,7 @@ describe("API input validation and errors", () => {
     const csp = res.headers["content-security-policy"];
     expect(csp).toMatch(/script-src 'self'/);
     expect(csp).toMatch(/https:\/\/tile\.openstreetmap\.org/);
-    expect(csp).toMatch(/frame-src https:\/\/www\.youtube-nocookie\.com/);
+    expect(csp).toMatch(/frame-src 'none'/);
+    expect(csp).toMatch(/media-src 'self'/);
   });
 });
