@@ -2,14 +2,30 @@
 
 From June to September 2026, the Inside Airbnb snapshots for Switzerland had
 no usable prices (every value was below 1 CHF) until Inside Airbnb republished
-them. `scrape_prices.py` collects current nightly prices of the Vaud listings
+them. A price scraper collects current nightly prices of the Vaud listings
 from Airbnb directly, once a month, so prices stay fresh between snapshots.
+
+## Where the scraper lives
+
+The scraper is kept in the private `SmartBnB-data` repository (`prices/`),
+next to the snapshot archive. This repository only documents the pipeline and
+the table it fills.
+
+Why: Airbnb's terms of service do not allow automated collection, and this
+repository is public. Publishing a working scraper would hand out a tool that
+breaks those terms, whatever safeguards it has. Two other options were
+considered (#36):
+
+- **Keep it public with explicit safeguards**: the code would stay a working
+  tool anyone can reuse, and the safeguards only bind this project.
+- **Stop collecting prices** and show the last valid Inside Airbnb price with
+  its date: simpler, but prices get up to a month old between snapshots.
 
 ## Pipeline
 
 ```
 Airbnb search + listing pages
-        │  scrape_prices.py      (extract)
+        │  price scraper         (extract, private repository)
         ▼
 price_observations               raw layer: one row per listing and run,
         │                        with the full price breakdown
@@ -35,41 +51,19 @@ nightly_price = (total - taxes) / nights
 - Checked against the last valid Inside Airbnb prices (April and May 2026):
   median ratio 1.01 on 171 Lausanne listings, so both series can be compared.
 
-## How a run works
+## What a run collects
 
-1. **Search pass.** The box around the active listings is cut into
-   0.1° tiles. Each tile is searched for one reference stay: 2 nights from
-   the first Friday at least four weeks ahead, 1 adult, in CHF. A tile with
-   240 results or more is split in four, because one search returns at most
-   about 270 listings. Every listing found gets a price for the same dates.
-2. **Listing pass.** Active listings the search did not return (minimum stay
-   longer than 2 nights, already booked that weekend) are priced one by one,
-   for their next free stay at least a week ahead, of their minimum length
-   (at least 2 nights). Listings with no free dates in the next year are
-   stored as `unavailable`.
-
-Requests are spaced out (2 to 3 seconds), and the run stops after five errors
-in a row. It is resumable: rerunning with the same `--run-id` skips the
-listings already stored.
-
-## Run it
-
-```bash
-pip install -r data/prices/requirements.txt
-python data/prices/scrape_prices.py          # a few hours, run id = today
-python data/db/load_data.py                  # refresh current_prices and medians
-```
-
-`DATABASE_URL` is read like `load_data.py` does (environment variable or
-`data/db/.env`). Test with `--limit 20` and a small `--bounds` box first.
+1. **Search pass.** One reference stay for every listing found on the map:
+   2 nights from the first Friday at least four weeks ahead, 1 adult, in CHF.
+2. **Listing pass.** Active listings the search did not return (longer
+   minimum stay, already booked that weekend) are priced for their next free
+   stay of their minimum length. Listings with no free dates in the next year
+   are stored as `unavailable`.
 
 ## Rules
 
 - Only prices are collected: no names, photos, hosts or reviews.
-- Collected prices stay in the database and are not committed to this
+- Collected prices stay in the database and are not committed to any
   repository.
-- Airbnb's terms of service do not allow automated collection. The volume is
-  kept low, and collection stops if Airbnb asks.
-- The scraper relies on [pyairbnb](https://github.com/johnbalvin/pyairbnb),
-  which follows Airbnb's internal API. When Airbnb changes it, update the
-  pinned version in `requirements.txt`.
+- The volume is kept low (requests spaced out, the run stops after repeated
+  errors), and collection stops if Airbnb asks.

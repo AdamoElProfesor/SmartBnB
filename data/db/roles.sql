@@ -10,7 +10,7 @@
 --                    stats tables and etl_runs, reads price_observations.
 --                    It cannot drop tables or touch the collected prices.
 --
--- "postgres" stays for schema.sql, load_data.py --init and scrape_prices.py.
+-- "postgres" stays for schema.sql, load_data.py --init and the price scraper.
 --
 -- Run it once, with three long random passwords (schema.sql gives the grants
 -- and policies back each time it recreates the tables):
