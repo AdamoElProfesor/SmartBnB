@@ -33,7 +33,6 @@ updates:
   - package-ecosystem: pip
     directories:
       - /data/db
-      - /data/prices
     schedule:
       interval: weekly
 
