@@ -6,7 +6,7 @@ activity, amenities and host status, summed up in a score out of 100.
 
 **Live at [smartbnb.ch](https://www.smartbnb.ch)**
 
-https://github.com/user-attachments/assets/e4382435-9a17-4f5f-85fb-becbc3c5df38
+[![Watch the SmartBnB demo (1 min 21)](docs/media/demo-thumbnail.jpg)](https://www.smartbnb.ch/media/smartbnb-demo.mp4)
 
 ## What it does
 
