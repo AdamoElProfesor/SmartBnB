@@ -66,9 +66,21 @@ jobs:
             --output "backup/${FILE}.gpg" "backup/${FILE}" <<< "${BACKUP_PASSPHRASE}"
           rm "backup/${FILE}"
 
+      # Uploaded before the restore test, so a failing test still leaves the
+      # day's dump available (the run fails and GitHub emails the owner).
+      - name: Upload the encrypted dump
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.FILE }}.gpg
+          path: backup/${{ env.FILE }}.gpg
+          retention-days: 30
+          compression-level: 0 # already compressed by pg_dump
+          if-no-files-found: error
+
       # A backup only counts once it has been restored: decrypt the uploaded
       # file (this also proves the passphrase works), restore it into an empty
-      # Postgres and compare the row count of every table with the source.
+      # Postgres without a single error, and compare the row count of every
+      # table and the number of RLS policies with the source.
       - name: Prove the encrypted dump restores
         env:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
@@ -84,16 +96,27 @@ jobs:
             docker exec restore pg_isready -U postgres -q && break
             sleep 2
           done
-          # The RLS policies in the dump name these roles (data/db/roles.sql)
-          docker exec restore psql -U postgres -q -c "CREATE ROLE smartbnb_app; CREATE ROLE smartbnb_backup;"
+          # The RLS policies in the dump name every role of data/db/roles.sql:
+          # keep this list in sync. The dump creates the public schema itself.
+          docker exec restore psql -U postgres -q -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE smartbnb_app; CREATE ROLE smartbnb_backup; CREATE ROLE smartbnb_loader;" \
+            -c "DROP SCHEMA public CASCADE;"
           docker cp restore.dump restore:/tmp/restore.dump
           rm restore.dump
-          docker exec restore pg_restore -U postgres -d postgres --no-owner --no-privileges /tmp/restore.dump \
-            || echo "::warning::pg_restore reported errors (row counts below decide)"
+          # Any error fails the run: a restore that silently drops policies or
+          # grants is not a working backup.
+          if ! docker exec restore pg_restore -U postgres -d postgres --no-owner --no-privileges \
+                 --exit-on-error /tmp/restore.dump; then
+            echo "::error::pg_restore failed, see the log above"
+            exit 1
+          fi
 
-          # Exact row count of every table in the public schema
-          COUNTS="SELECT table_name, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint
-                  FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY 1"
+          # Exact row count of every table in the public schema, plus the
+          # number of RLS policies (rls_policies)
+          COUNTS="SELECT table_name::text, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', table_name), false, true, '')))[1]::text::bigint
+                  FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                  UNION ALL SELECT 'rls_policies', count(*) FROM pg_policies WHERE schemaname = 'public'
+                  ORDER BY 1"
           docker run --rm -e BACKUP_DATABASE_URL "${PG_IMAGE}" \
             psql "$BACKUP_DATABASE_URL" -AtF ' ' -c "$COUNTS" > source.txt
           docker exec restore psql -U postgres -d postgres -AtF ' ' -c "$COUNTS" > restored.txt
@@ -115,15 +138,6 @@ jobs:
           done < source.txt
           exit $status
 
-      - name: Upload the encrypted dump
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ${{ env.FILE }}.gpg
-          path: backup/${{ env.FILE }}.gpg
-          retention-days: 30
-          compression-level: 0 # already compressed by pg_dump
-          if-no-files-found: error
-
       # Dead man's switch: healthchecks.io (or any URL pinged on success)
       # emails when the ping stops arriving, which also catches the case where
       # GitHub disables this schedule after 60 days without repository activity.
@@ -134,5 +148,5 @@ jobs:
           if [ -n "${BACKUP_HEALTHCHECK_URL}" ]; then
             curl -fsS -m 10 --retry 3 "${BACKUP_HEALTHCHECK_URL}" > /dev/null
           else
-            echo "::notice::BACKUP_HEALTHCHECK_URL is not set, no monitor pinged"
+            echo "::warning::BACKUP_HEALTHCHECK_URL is not set: nothing alerts if backups stop running"
           fi
