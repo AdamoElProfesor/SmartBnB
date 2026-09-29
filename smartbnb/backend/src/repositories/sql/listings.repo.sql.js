@@ -10,7 +10,8 @@ const LONG_STAY_MIN_NIGHTS = 28;
 const RATING_PRIOR_REVIEWS = 40;
 
 /**
- * Search listings still active in the latest scrape, with optional filters/sort.
+ * Search the listings still on Airbnb (listing_activity.is_active), with
+ * optional filters/sort, from each one's latest snapshot.
  * The price ranking leaves out long stays: their monthly rent spread per night
  * is not comparable with a holiday price. The rating ranking uses a Bayesian
  * average (RATING_PRIOR_REVIEWS).
@@ -27,19 +28,17 @@ exports.search = async ({
     : 10;
   const rows = await all(
     `
-    -- A listing still active has a row in the latest scrape, and that row is
-    -- its newest one: filter on it directly (index on scrape_id) instead of
-    -- ranking every snapshot of the history.
-    WITH last_scrape AS (
-      SELECT MAX(scrape_id) AS scrape_id FROM public.airbnb_snapshots
-    ),
-    latest AS (
+    -- Active listings (the one definition, computed by the pipeline) and the
+    -- latest snapshot of each: a lookup on the snapshots' primary key
+    -- (listing_id, scrape_id) instead of ranking every snapshot of the history.
+    WITH latest AS (
       SELECT s.*
-      FROM public.airbnb_snapshots s
-      JOIN last_scrape ls ON ls.scrape_id = s.scrape_id
+      FROM public.listing_activity a
+      JOIN public.airbnb_snapshots s
+        ON s.listing_id = a.listing_id AND s.scrape_id = a.last_scrape_id
+      WHERE a.is_active
     ),
-    -- Mean rating of the listings in the latest scrape: the prior of the
-    -- Bayesian average.
+    -- Mean rating of the active listings: the prior of the Bayesian average.
     prior AS (
       SELECT AVG(review_scores_rating) AS mean_rating
       FROM latest
@@ -84,7 +83,8 @@ exports.search = async ({
 };
 
 /**
- * Get detailed listing by ID (latest snapshot, neighborhood stats, amenities)
+ * Get detailed listing by ID (latest snapshot, lifetime and activity,
+ * neighborhood stats, amenities), whether or not it is still on Airbnb
  * @param {string|number} id
  * @param {{ missingLimit?: number, missingMinPoint?: number }} [options]
  * @returns {Promise<object|null>}
@@ -123,6 +123,9 @@ exports.getById = async (
       v.neighbourhood_group_cleansed AS neighborhood_group,
       v.room_type,
       v.accommodates,
+      act.first_seen,
+      act.last_seen,
+      act.is_active,
       cp.price,
       cp.price_date,
       s.number_of_reviews_ltm,
@@ -142,6 +145,7 @@ exports.getById = async (
       m.missing_amenities
     FROM public.airbnb_vaud v
     LEFT JOIN latest s ON s.listing_id = v.id
+    LEFT JOIN public.listing_activity act ON act.listing_id = v.id
     LEFT JOIN public.current_prices cp ON cp.listing_id = v.id
     LEFT JOIN amen   a ON TRUE
     LEFT JOIN public.airbnb_points p ON p.airbnb_id = v.id

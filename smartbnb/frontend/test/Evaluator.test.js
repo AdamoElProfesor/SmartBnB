@@ -66,6 +66,27 @@ describe("Evaluator", () => {
     expect(wrapper.find(".result").exists()).toBe(false);
   });
 
+  test("a listing that left Airbnb is flagged, without score nor analysis", async () => {
+    apiPost.mockResolvedValue({
+      ...RESULT,
+      active: false,
+      last_seen: "2025-03-16",
+      smart_score: null,
+      analysis: null,
+    });
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    const text = wrapper.text();
+    expect(text).toContain("Lake view studio");
+    expect(text).toContain("No longer on Airbnb");
+    expect(text).toContain("last seen on Airbnb on 16 March 2025");
+    expect(wrapper.find(".verdict").exists()).toBe(false);
+    expect(wrapper.find(".analysis").exists()).toBe(false);
+    expect(text).toContain("Open this listing on Airbnb");
+  });
+
   test("switching to French translates the page and asks for the analysis in French", async () => {
     apiPost.mockResolvedValue(RESULT);
     const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });

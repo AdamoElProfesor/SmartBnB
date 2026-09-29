@@ -128,6 +128,25 @@ describe("score.service analysis cache", () => {
     expect(repo.aiAnalyses.get).not.toHaveBeenCalled();
   });
 
+  test("a listing that left Airbnb is not scored and never reaches the AI", async () => {
+    repo.listings.getById.mockResolvedValue({ ...listing, is_active: false, last_seen: "2025-03-16" });
+    const out = await service.computeFromUrl("53584592");
+    expect(out).toMatchObject({ ok: true, active: false, last_seen: "2025-03-16", smart_score: null, analysis: null });
+    expect(out.listing.name).toBe("Petite chambre");
+    expect(ai.chatProsCons).not.toHaveBeenCalled();
+    expect(repo.aiAnalyses.get).not.toHaveBeenCalled();
+  });
+
+  test("an active listing says so, and a listing without activity data counts as active", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(analysis);
+    repo.listings.getById.mockResolvedValue({ ...listing, is_active: true, last_seen: "2026-09-14" });
+    expect(await service.computeFromUrl("53584592")).toMatchObject({ active: true, last_seen: "2026-09-14" });
+    repo.listings.getById.mockResolvedValue(listing);
+    const out = await service.computeFromUrl("53584592");
+    expect(out.active).toBe(true);
+    expect(typeof out.smart_score).toBe("number");
+  });
+
   test("invalid or unknown listings never reach the AI", async () => {
     expect(await service.computeFromUrl("https://evil.com/rooms/1")).toEqual({ ok: false, error: "Invalid Airbnb URL" });
     repo.listings.getById.mockResolvedValue(null);

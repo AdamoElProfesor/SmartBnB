@@ -46,63 +46,73 @@
           </p>
         </header>
 
-        <div class="verdict">
-          <p class="score"><span class="score-num">{{ shownScore }}</span><span class="score-max">/100</span></p>
-          <div>
-            <p class="verdict-word">{{ verdict.word }}</p>
-            <p class="verdict-note">{{ verdict.note }}</p>
-          </div>
-        </div>
-
-        <div v-if="price" class="price-rule">
-          <p class="rule-caption">
-            <strong>{{ formatCHF(listing.price) }}</strong> {{ t("evaluator.perNight", { sentence: price.sentence }) }}
+        <!-- A listing no longer on Airbnb is not scored: there is nothing to book -->
+        <div v-if="gone" class="gone" role="status">
+          <p class="gone-title">{{ t("evaluator.goneTitle") }}</p>
+          <p class="gone-text">
+            {{ result.last_seen ? t("evaluator.goneText", { date: formatDate(result.last_seen) }) : t("evaluator.goneTextNoDate") }}
           </p>
-          <div
-            class="rule"
-            role="img"
-            :aria-label="t('evaluator.ruleLabel', { price: formatCHF(listing.price), median: formatCHF(listing.median_price) })"
-          >
-            <div class="rule-track"></div>
-            <div class="rule-median" :style="{ left: price.medianPos + '%' }">
-              <span>{{ t("evaluator.median", { price: formatCHF(listing.median_price) }) }}</span>
+        </div>
+
+        <template v-else>
+          <div class="verdict">
+            <p class="score"><span class="score-num">{{ shownScore }}</span><span class="score-max">/100</span></p>
+            <div>
+              <p class="verdict-word">{{ verdict.word }}</p>
+              <p class="verdict-note">{{ verdict.note }}</p>
             </div>
-            <div class="rule-dot" :style="{ left: price.listingPos + '%' }"></div>
           </div>
-          <p v-if="listing.price_date" class="fine">{{ t("evaluator.priceSeen", { date: formatDate(listing.price_date) }) }}</p>
-        </div>
-        <p v-else class="fine">{{ t("evaluator.noPrice") }}</p>
 
-        <dl class="facts">
-          <div>
-            <dt>{{ t("evaluator.rating") }}</dt>
-            <dd>{{ isNum(listing.rating) ? formatNumber(listing.rating, 2) : t("evaluator.noRating") }}</dd>
-            <dd v-if="isNum(listing.neighborhood_avg_rating)" class="fact-ref">
-              {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_rating, 2) }) }}
-            </dd>
+          <div v-if="price" class="price-rule">
+            <p class="rule-caption">
+              <strong>{{ formatCHF(listing.price) }}</strong> {{ t("evaluator.perNight", { sentence: price.sentence }) }}
+            </p>
+            <div
+              class="rule"
+              role="img"
+              :aria-label="t('evaluator.ruleLabel', { price: formatCHF(listing.price), median: formatCHF(listing.median_price) })"
+            >
+              <div class="rule-track"></div>
+              <div class="rule-median" :style="{ left: price.medianPos + '%' }">
+                <span>{{ t("evaluator.median", { price: formatCHF(listing.median_price) }) }}</span>
+              </div>
+              <div class="rule-dot" :style="{ left: price.listingPos + '%' }"></div>
+            </div>
+            <p v-if="listing.price_date" class="fine">{{ t("evaluator.priceSeen", { date: formatDate(listing.price_date) }) }}</p>
           </div>
-          <div>
-            <dt>{{ t("evaluator.reviewsMonth") }}</dt>
-            <dd>{{ isNum(listing.reviews_per_month) ? formatNumber(listing.reviews_per_month, 1) : t("evaluator.noReviews") }}</dd>
-            <dd v-if="isNum(listing.neighborhood_avg_reviews_per_month)" class="fact-ref">
-              {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_reviews_per_month, 1) }) }}
-            </dd>
-          </div>
-          <div>
-            <dt>{{ t("evaluator.superhost") }}</dt>
-            <dd>{{ listing.host_is_superhost ? t("evaluator.yes") : t("evaluator.no") }}</dd>
-          </div>
-        </dl>
+          <p v-else class="fine">{{ t("evaluator.noPrice") }}</p>
 
-        <div class="amenities">
-          <h3>{{ t("evaluator.amenities") }}</h3>
-          <ul>
-            <li v-for="a in listing.amenities || []" :key="'y' + a" class="has">{{ amenityLabel(a) }}</li>
-            <li v-for="a in listing.missing_amenities || []" :key="'n' + a" class="missing">
-              <span class="sr-only">{{ t("evaluator.missing") }} </span>{{ amenityLabel(a) }}
-            </li>
-          </ul>
-        </div>
+          <dl class="facts">
+            <div>
+              <dt>{{ t("evaluator.rating") }}</dt>
+              <dd>{{ isNum(listing.rating) ? formatNumber(listing.rating, 2) : t("evaluator.noRating") }}</dd>
+              <dd v-if="isNum(listing.neighborhood_avg_rating)" class="fact-ref">
+                {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_rating, 2) }) }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ t("evaluator.reviewsMonth") }}</dt>
+              <dd>{{ isNum(listing.reviews_per_month) ? formatNumber(listing.reviews_per_month, 1) : t("evaluator.noReviews") }}</dd>
+              <dd v-if="isNum(listing.neighborhood_avg_reviews_per_month)" class="fact-ref">
+                {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_reviews_per_month, 1) }) }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ t("evaluator.superhost") }}</dt>
+              <dd>{{ listing.host_is_superhost ? t("evaluator.yes") : t("evaluator.no") }}</dd>
+            </div>
+          </dl>
+
+          <div class="amenities">
+            <h3>{{ t("evaluator.amenities") }}</h3>
+            <ul>
+              <li v-for="a in listing.amenities || []" :key="'y' + a" class="has">{{ amenityLabel(a) }}</li>
+              <li v-for="a in listing.missing_amenities || []" :key="'n' + a" class="missing">
+                <span class="sr-only">{{ t("evaluator.missing") }} </span>{{ amenityLabel(a) }}
+              </li>
+            </ul>
+          </div>
+        </template>
 
         <div class="res-actions">
           <a class="res-link" :href="`https://www.airbnb.ch/rooms/${result.listing_id}`" target="_blank" rel="noopener">
@@ -191,6 +201,8 @@ const hasAnalysis = computed(() => pros.value.length > 0 || cons.value.length > 
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
+// The API does not score a listing that left Airbnb (active: false)
+const gone = computed(() => result.value?.active === false);
 const verdict = computed(() => verdictFor(result.value?.smart_score));
 const price = computed(() => priceComparison(listing.value));
 
@@ -244,7 +256,9 @@ onBeforeUnmount(() => window.removeEventListener("popstate", checkFromAddress));
 let copiedTimer;
 async function shareResult() {
   const link = shareUrl(result.value.listing_id);
-  const text = t("evaluator.shareText", { name: listing.value.name, score: result.value.smart_score });
+  const text = gone.value
+    ? t("evaluator.shareTextGone", { name: listing.value.name })
+    : t("evaluator.shareText", { name: listing.value.name, score: result.value.smart_score });
   // Phones open the native share sheet (WhatsApp, Messages...); desktops copy the link
   if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
     try {
@@ -430,6 +444,16 @@ h1:lang(fr) { max-width: 13ch; }
 .score-max { font-size: 1.2rem; font-weight: 600; color: var(--ink-3); margin-left: 4px; }
 .verdict-word { font-size: 1.6rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
 .verdict-note { margin: 4px 0 0; color: var(--ink-2); }
+
+.gone {
+  margin: 28px 0;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border-left: 4px solid var(--mid);
+  background: #F8EEDC;
+}
+.gone-title { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
+.gone-text { margin: 6px 0 0; color: var(--ink-2); }
 
 .price-rule { margin-bottom: 28px; }
 .rule-caption { margin: 0 0 18px; }
