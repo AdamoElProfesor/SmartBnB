@@ -4,6 +4,9 @@ import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
+  test: {
+    setupFiles: ["test/setup.js"],
+  },
   server: {
     host: true,   // utile en LAN
     port: 5173,

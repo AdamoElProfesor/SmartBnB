@@ -1,0 +1,193 @@
+{
+  "locale": {
+    "name": "Français",
+    "short": "FR",
+    "intl": "fr-CH",
+    "money": "fr-CH"
+  },
+  "page": {
+    "title": "SmartBnB : cet Airbnb est-il une bonne affaire ?"
+  },
+  "nav": {
+    "skip": "Aller à la vérification d'annonce",
+    "home": "Accueil SmartBnB",
+    "sections": "Sections",
+    "evaluate": "Vérifier une annonce",
+    "map": "Carte des prix",
+    "top10": "Top 10",
+    "trends": "Tendances",
+    "language": "Langue"
+  },
+  "footer": {
+    "credits": "Créé par Adam Gruber, Axel Pittet et Edison Sahitaj.",
+    "dataFrom": "Données des annonces :",
+    "cleaned": "nettoyées et agrégées",
+    "mapsFrom": "cartes :",
+    "source": "Code source sur GitHub"
+  },
+  "evaluator": {
+    "title": "Cet Airbnb est-il une bonne affaire ?",
+    "lede": "Collez une annonce du canton de Vaud. SmartBnB compare son prix par nuit, ses avis et ses équipements avec ceux de logements similaires du même secteur.",
+    "urlLabel": "Lien de l'annonce Airbnb",
+    "checking": "Vérification…",
+    "check": "Vérifier l'annonce",
+    "example": "Essayer avec une annonce à Montreux",
+    "resultSub": "{type} à {place}, {guests}",
+    "guests": {
+      "one": "{count} voyageur",
+      "other": "{count} voyageurs"
+    },
+    "perNight": "la nuit, {sentence}",
+    "ruleLabel": "Annonce {price}, médiane {median}",
+    "median": "médiane {price}",
+    "priceSeen": "Prix relevé le {date}.",
+    "noPrice": "Pas de prix récent pour cette annonce : la part du prix dans le score est donc neutre.",
+    "rating": "Note",
+    "noRating": "Aucune note",
+    "reviewsMonth": "Avis par mois",
+    "noReviews": "Aucun",
+    "area": "secteur {value}",
+    "superhost": "Superhôte",
+    "yes": "Oui",
+    "no": "Non",
+    "amenities": "Équipements clés",
+    "missing": "Absent :",
+    "openAirbnb": "Ouvrir l'annonce sur Airbnb",
+    "share": "Partager ce résultat",
+    "copied": "Lien copié",
+    "copiedAnnounce": "Lien copié dans le presse-papiers",
+    "shareText": "{name} : {score}/100 sur SmartBnB",
+    "copyPrompt": "Copiez ce lien :",
+    "howTitle": "Comment le score est calculé",
+    "howIntro": "Chaque annonce reçoit un score sur 100, composé de quatre parties :",
+    "weights": {
+      "price": "Prix face aux logements similaires proches",
+      "reviews": "Activité des avis face au secteur",
+      "amenities": "Équipements clés",
+      "superhost": "Superhôte"
+    },
+    "howNote": "Basé sur les données publiques d'InsideAirbnb. Chaque annonce est comparée au même type de logement dans le même quartier.",
+    "analysisTitle": "Ce qui ressort",
+    "strengths": "Points forts",
+    "watchOut": "Points d'attention",
+    "aiNote": "Rédigé par un modèle d'IA à partir des chiffres de cette annonce. Il peut se tromper."
+  },
+  "verdict": {
+    "good": {
+      "word": "À réserver",
+      "note": "Meilleur rapport qualité-prix que la plupart des logements comparables."
+    },
+    "fair": {
+      "word": "Prix correct",
+      "note": "Dans la moyenne de ce que propose le secteur."
+    },
+    "poor": {
+      "word": "Comparez d'abord",
+      "note": "Des logements similaires à proximité offrent plus pour le même prix."
+    }
+  },
+  "price": {
+    "at": "au niveau de la médiane {where}.",
+    "below": "{pct}% en dessous de la médiane {where}.",
+    "above": "{pct}% au-dessus de la médiane {where}.",
+    "where": "pour {type} à {place}"
+  },
+  "roomType": {
+    "entire": "logement entier",
+    "private": "chambre privée",
+    "shared": "chambre partagée",
+    "hotel": "chambre d'hôtel",
+    "other": "logement"
+  },
+  "roomTypeWithArticle": {
+    "entire": "un logement entier",
+    "private": "une chambre privée",
+    "shared": "une chambre partagée",
+    "hotel": "une chambre d'hôtel",
+    "other": "un logement"
+  },
+  "amenity": {
+    "WIFI": "Wi-Fi",
+    "KITCHEN": "Cuisine",
+    "HEATING": "Chauffage",
+    "AC": "Climatisation",
+    "PARKING": "Parking",
+    "WASHER": "Lave-linge",
+    "DRYER": "Sèche-linge",
+    "WORKSPACE": "Espace de travail",
+    "ENTRANCE": "Entrée privée",
+    "HOTTUB": "Jacuzzi"
+  },
+  "scoreError": {
+    "400": "Ce lien ne ressemble pas à une annonce Airbnb. Collez le lien partagé depuis l'app Airbnb, ou un lien qui contient /rooms/ suivi d'un numéro.",
+    "404": "Cette annonce n'est pas dans nos données. SmartBnB couvre uniquement les annonces du canton de Vaud recensées par InsideAirbnb.",
+    "422": "Impossible d'ouvrir ce lien de partage. Ouvrez-le dans votre navigateur et copiez l'adresse affichée : elle doit contenir /rooms/ suivi d'un numéro.",
+    "429": "Vous avez vérifié beaucoup d'annonces en peu de temps. Patientez un peu, puis réessayez.",
+    "other": "La vérification n'a pas abouti. Réessayez dans un instant."
+  },
+  "demo": {
+    "watch": "Voir la démo (1 min, en anglais)",
+    "dialog": "Vidéo de démonstration de SmartBnB",
+    "close": "Fermer la vidéo"
+  },
+  "map": {
+    "touchHint": "Utilisez deux doigts pour déplacer la carte"
+  },
+  "heatmap": {
+    "title": "Où les logements coûtent plus cher",
+    "intro": "Toutes les annonces actives du canton de Vaud, colorées selon leur prix par nuit. Les cercles regroupent les annonces proches et affichent leur prix médian en CHF. Zoomez pour voir chaque logement.",
+    "loading": "Chargement de la carte…",
+    "error": "La carte des prix n'a pas pu se charger. Rechargez la page pour réessayer.",
+    "perNight": "la nuit",
+    "tooltip": "{price} la nuit"
+  },
+  "top10": {
+    "title": "Top 10 des logements du moment",
+    "intro": "Classements parmi les annonces actives dans les dernières données. Choisissez une liste, survolez un logement pour le situer sur la carte, cliquez pour l'ouvrir sur Airbnb.",
+    "tabsLabel": "Listes du top 10",
+    "tabs": {
+      "rating": {
+        "label": "Les mieux notés",
+        "hint": "D'excellentes notes, données par de nombreux voyageurs."
+      },
+      "price": {
+        "label": "Les moins chers",
+        "hint": "Les prix par nuit les plus bas parmi les logements réservables pour moins d'un mois."
+      },
+      "reviews": {
+        "label": "Les plus commentés cette année",
+        "hint": "Le plus d'avis de voyageurs sur les 12 derniers mois."
+      }
+    },
+    "loading": "Chargement des classements…",
+    "error": "Les classements n'ont pas pu se charger. Rechargez la page pour réessayer.",
+    "untitled": "Annonce sans titre",
+    "noPrice": "Pas de prix",
+    "reviews": {
+      "one": "{count} avis",
+      "other": "{count} avis"
+    },
+    "minMonths": {
+      "one": "Min. {count} mois",
+      "other": "Min. {count} mois"
+    },
+    "minNights": {
+      "one": "Min. {count} nuit",
+      "other": "Min. {count} nuits"
+    }
+  },
+  "trends": {
+    "title": "Les prix cette année",
+    "intro": "Évolution du prix médian par nuit de chaque district sur les 12 derniers mois de données.",
+    "loading": "Chargement des tendances…",
+    "error": "Les tendances de prix n'ont pas pu se charger. Rechargez la page pour réessayer.",
+    "empty": "Aucune tendance de prix n'est encore disponible.",
+    "unknown": "Inconnu"
+  },
+  "openSource": {
+    "label": "Open source",
+    "lead": "SmartBnB est open source.",
+    "body": "Un bug ou une idée ? Chaque contribution est lue et reçoit une réponse.",
+    "link": "Contribuer sur GitHub"
+  }
+}

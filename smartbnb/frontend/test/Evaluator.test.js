@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import Evaluator from "../src/components/Evaluator.vue";
+import { locale } from "../src/i18n";
 import { apiPost } from "../src/lib/api";
 
 vi.mock("../src/lib/api", () => ({ apiPost: vi.fn() }));
@@ -46,7 +47,7 @@ describe("Evaluator", () => {
 
     await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
 
-    expect(apiPost).toHaveBeenCalledWith("/score", { airbnbUrl: "https://www.airbnb.ch/rooms/53584592" });
+    expect(apiPost).toHaveBeenCalledWith("/score", { airbnbUrl: "https://www.airbnb.ch/rooms/53584592", lang: "en" });
     const text = wrapper.text();
     expect(text).toContain("Lake view studio");
     expect(text).toContain("72/100");
@@ -63,5 +64,22 @@ describe("Evaluator", () => {
 
     expect(wrapper.find('[role="alert"]').text()).toMatch(/isn't in our data/);
     expect(wrapper.find(".result").exists()).toBe(false);
+  });
+
+  test("switching to French translates the page and asks for the analysis in French", async () => {
+    apiPost.mockResolvedValue(RESULT);
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    const french = { ...RESULT, analysis: { pros: ["Vue sur le lac"], cons: [], summary: "Une bonne affaire." } };
+    apiPost.mockResolvedValue(french);
+    locale.value = "fr";
+    await flushPromises();
+
+    expect(apiPost).toHaveBeenLastCalledWith("/score", { airbnbUrl: "53584592", lang: "fr" });
+    const text = wrapper.text();
+    expect(text).toContain("À réserver");
+    expect(text).toContain("20% en dessous de la médiane pour un logement entier à Montreux.");
+    expect(text).toContain("Vue sur le lac");
   });
 });

@@ -2,23 +2,20 @@
   <section id="price-map" class="section">
     <div class="wrap">
       <div class="section-head">
-        <h2>Where stays cost more</h2>
-        <p>
-          Every active listing in canton Vaud, coloured by its nightly price. Circles group nearby
-          listings and show their median price in CHF. Zoom in to see single stays.
-        </p>
+        <h2>{{ t("heatmap.title") }}</h2>
+        <p>{{ t("heatmap.intro") }}</p>
       </div>
 
       <div class="map-frame">
         <div ref="mapEl" class="map-canvas" />
-        <div v-if="loading" class="overlay">Loading the map…</div>
-        <div v-else-if="error" class="overlay overlay-error">{{ error }}</div>
+        <div v-if="loading" class="overlay">{{ t("heatmap.loading") }}</div>
+        <div v-else-if="error" class="overlay overlay-error">{{ t("heatmap.error") }}</div>
 
         <div v-if="!loading && !error" class="legend">
           <span>{{ minPriceText }}</span>
           <span class="legend-bar" :style="{ background: PRICE_GRADIENT }"></span>
           <span>{{ maxPriceText }}+</span>
-          <span class="legend-label">a night</span>
+          <span class="legend-label">{{ t("heatmap.perNight") }}</span>
         </div>
       </div>
     </div>
@@ -27,6 +24,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
+import { t } from "../i18n";
 import { createBaseMap, fitToBounds, L } from "../lib/leafletMap";
 import { apiGet } from "../lib/api";
 import { formatCHF, priceColor, PRICE_GRADIENT } from "../lib/format";
@@ -36,7 +34,7 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 
 const mapEl = ref(null);
 const loading = ref(true);
-const error = ref("");
+const error = ref(false);
 
 let map;
 
@@ -96,6 +94,7 @@ onMounted(async () => {
       chunkedLoading: true,
       iconCreateFunction: clusterIcon,
     });
+    // Tooltips are functions, so they are written in the language active when they open
     clusters.addLayers(
       points.value.map((p) =>
         L.circleMarker([p.lat, p.lng], {
@@ -105,13 +104,13 @@ onMounted(async () => {
           fillColor: priceColor(tFromPrice(p.price)),
           fillOpacity: 1,
           price: p.price,
-        }).bindTooltip(`${formatCHF(p.price)} a night`)
+        }).bindTooltip(() => t("heatmap.tooltip", { price: formatCHF(p.price) }))
       )
     );
     map.addLayer(clusters);
   } catch (e) {
     console.error(e);
-    error.value = "The price map couldn't load. Reload the page to try again.";
+    error.value = true;
   } finally {
     loading.value = false;
   }

@@ -2,29 +2,29 @@
   <section id="top-10" class="section">
     <div class="wrap">
       <div class="section-head">
-        <h2>Top 10 stays right now</h2>
-        <p>Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb.</p>
+        <h2>{{ t("top10.title") }}</h2>
+        <p>{{ t("top10.intro") }}</p>
       </div>
 
-      <div class="tabs" role="tablist" aria-label="Top 10 lists">
+      <div class="tabs" role="tablist" :aria-label="t('top10.tabsLabel')">
         <button
-          v-for="t in TABS"
-          :key="t.key"
+          v-for="tab in TABS"
+          :key="tab"
           role="tab"
           type="button"
           class="tab"
-          :aria-selected="activeTab === t.key"
-          @click="switchTab(t.key)"
+          :aria-selected="activeTab === tab"
+          @click="switchTab(tab)"
         >
-          {{ t.label }}
+          {{ t(`top10.tabs.${tab}.label`) }}
         </button>
       </div>
-      <p class="tab-hint">{{ activeHint }}</p>
+      <p class="tab-hint">{{ t(`top10.tabs.${activeTab}.hint`) }}</p>
 
       <div class="top-grid">
         <div class="list-col">
-          <p v-if="error" class="state state-error">{{ error }}</p>
-          <p v-else-if="loading" class="state">Loading the rankings…</p>
+          <p v-if="error" class="state state-error">{{ t("top10.error") }}</p>
+          <p v-else-if="loading" class="state">{{ t("top10.loading") }}</p>
           <ol v-else class="top10">
             <li
               v-for="(item, i) in currentList"
@@ -36,7 +36,7 @@
               <a :href="listingUrl(item.id)" target="_blank" rel="noopener" @focus="handleHover(item.id)" @blur="handleHover(null)">
                 <span class="rank">{{ i + 1 }}</span>
                 <span class="info">
-                  <span class="title">{{ item.title }}</span>
+                  <span class="title">{{ item.title ?? t("top10.untitled") }}</span>
                   <span class="meta">
                     {{ item.city }}, {{ roomTypeLabel(item.type) }}
                     <span v-if="item.longStay" class="stay-badge">{{ minStayLabel(item.minNights) }}</span>
@@ -44,7 +44,9 @@
                 </span>
                 <span class="metric">
                   {{ metric(item) }}
-                  <span v-if="activeTab === 'rating' && item.totalReviews != null" class="metric-sub">{{ reviewsLabel(item.totalReviews) }}</span>
+                  <span v-if="activeTab === 'rating' && item.totalReviews != null" class="metric-sub">
+                    {{ t("top10.reviews", { count: item.totalReviews }) }}
+                  </span>
                 </span>
               </a>
             </li>
@@ -61,15 +63,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from "vue";
+import { t } from "../i18n";
 import { createBaseMap, fitToBounds, L } from "../lib/leafletMap";
 import { apiGet } from "../lib/api";
-import { formatCHF, isNum, roomTypeLabel } from "../lib/format";
+import { formatCHF, formatNumber, isNum, roomTypeLabel } from "../lib/format";
 
-const TABS = [
-  { key: "rating", label: "Best rated", hint: "Great ratings from many guests." },
-  { key: "price", label: "Cheapest", hint: "Lowest nightly prices among stays you can book for less than a month." },
-  { key: "reviews", label: "Most reviewed this year", hint: "Most guest reviews over the last 12 months." },
-];
+const TABS = ["rating", "price", "reviews"];
 
 const mapEl = ref(null);
 let map;
@@ -77,35 +76,31 @@ const hoveredId = ref(null);
 const markers = new Map(); // id -> Marker
 
 const loading = ref(true);
-const error = ref("");
+const error = ref(false);
 
 const lists = reactive({ rating: [], price: [], reviews: [] });
 const activeTab = ref("rating");
 const currentList = computed(() => lists[activeTab.value]);
-const activeHint = computed(() => TABS.find((t) => t.key === activeTab.value)?.hint ?? "");
 
 const toNumberOrNull = (v) => (isNum(v) ? Number(v) : null);
 const listingUrl = (id) => `https://www.airbnb.ch/rooms/${id}`;
 
 function metric(item) {
-  if (activeTab.value === "price") return formatCHF(item.price) ?? "No price";
-  if (activeTab.value === "reviews") return item.reviews != null ? `${item.reviews} reviews` : "";
-  return isNum(item.rating) ? `${item.rating.toFixed(2)} ★` : "";
+  if (activeTab.value === "price") return formatCHF(item.price) ?? t("top10.noPrice");
+  if (activeTab.value === "reviews") return item.reviews != null ? t("top10.reviews", { count: item.reviews }) : "";
+  return isNum(item.rating) ? `${formatNumber(item.rating, 2)} ★` : "";
 }
 
 /** 90 -> "Min. 3 months", 45 -> "Min. 45 nights" */
 function minStayLabel(nights) {
-  const months = Math.round(nights / 30);
-  if (nights % 30 === 0 || nights >= 60) return `Min. ${months} month${months > 1 ? "s" : ""}`;
-  return `Min. ${nights} nights`;
+  if (nights % 30 === 0 || nights >= 60) return t("top10.minMonths", { count: Math.round(nights / 30) });
+  return t("top10.minNights", { count: nights });
 }
-
-const reviewsLabel = (n) => `${n} review${n === 1 ? "" : "s"}`;
 
 function mapListing(l) {
   return {
     id: l.id,
-    title: l.name ?? "Untitled listing",
+    title: l.name ?? null,
     city: l.neighborhood ?? "Vaud",
     type: l.room_type,
     rating: toNumberOrNull(l.rating),
@@ -135,7 +130,7 @@ async function loadTopLists() {
     drawMarkers(currentList.value);
   } catch (e) {
     console.error(e);
-    error.value = "The rankings couldn't load. Reload the page to try again.";
+    error.value = true;
   } finally {
     loading.value = false;
   }

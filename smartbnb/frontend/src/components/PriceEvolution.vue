@@ -2,17 +2,17 @@
   <section id="trends" class="section">
     <div class="wrap">
       <div class="section-head">
-        <h2>Prices this year</h2>
-        <p>Change in the median nightly price of each district over the last 12 months of data.</p>
+        <h2>{{ t("trends.title") }}</h2>
+        <p>{{ t("trends.intro") }}</p>
       </div>
 
-      <p v-if="loading" class="state">Loading the trends…</p>
-      <p v-else-if="error" class="state state-error">{{ error }}</p>
-      <p v-else-if="!rows.length" class="state">No price trend is available yet.</p>
+      <p v-if="loading" class="state">{{ t("trends.loading") }}</p>
+      <p v-else-if="error" class="state state-error">{{ t("trends.error") }}</p>
+      <p v-else-if="!rows.length" class="state">{{ t("trends.empty") }}</p>
 
       <ul v-else class="bars" :style="{ '--zero': zeroPos + '%' }">
-        <li v-for="r in rows" :key="r.label">
-          <span class="region">{{ r.label }}</span>
+        <li v-for="(r, i) in rows" :key="r.label ?? i">
+          <span class="region">{{ r.label ?? t("trends.unknown") }}</span>
           <span class="track">
             <span
               class="bar"
@@ -29,22 +29,24 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { t } from "../i18n";
 import { apiGet } from "../lib/api";
+import { formatNumber } from "../lib/format";
 
 const loading = ref(true);
-const error = ref("");
+const error = ref(false);
 const data = ref([]);
 
 onMounted(async () => {
   try {
     const res = await apiGet("/histogram");
     data.value = (Array.isArray(res?.data) ? res.data : [])
-      .map((r) => ({ label: r.region ?? "Unknown", value: Number(r.pct) }))
+      .map((r) => ({ label: r.region ?? null, value: Number(r.pct) }))
       .filter((d) => Number.isFinite(d.value))
       .sort((a, b) => b.value - a.value);
   } catch (e) {
     console.error(e);
-    error.value = "The price trends couldn't load. Reload the page to try again.";
+    error.value = true;
   } finally {
     loading.value = false;
   }
@@ -67,7 +69,7 @@ const rows = computed(() =>
   })
 );
 
-const formatPct = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v).toFixed(1)}%`;
+const formatPct = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${formatNumber(Math.abs(v), 1)}%`;
 </script>
 
 <style scoped>

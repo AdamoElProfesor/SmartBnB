@@ -1,5 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { watchEffect } from "vue";
+import { t } from "../i18n";
 
 // Free OpenStreetMap tiles, no API key needed. They are muted in CSS
 // (.muted-tiles) so the price colours stand out.
@@ -41,7 +43,8 @@ function addTouchHint(map) {
   const hint = L.control({ position: "topright" });
   hint.onAdd = () => {
     const el = L.DomUtil.create("div", "map-touch-hint");
-    el.textContent = "Use two fingers to move the map";
+    // Leaflet builds this outside Vue: follow language changes by hand
+    watchEffect(() => (el.textContent = t("map.touchHint")));
     return el;
   };
   hint.addTo(map);

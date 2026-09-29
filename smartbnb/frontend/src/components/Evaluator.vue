@@ -2,14 +2,11 @@
   <section id="evaluate" class="evaluator">
     <div class="wrap ev-grid">
       <div class="ev-intro">
-        <h1>Is this Airbnb a&nbsp;good&nbsp;deal?</h1>
-        <p class="lede">
-          Paste a listing from canton Vaud. SmartBnB compares its nightly price,
-          reviews and amenities with similar stays in the same area.
-        </p>
+        <h1>{{ t("evaluator.title") }}</h1>
+        <p class="lede">{{ t("evaluator.lede") }}</p>
 
         <form class="ev-form" @submit.prevent="evaluate()">
-          <label for="listing-url" class="sr-only">Airbnb listing link</label>
+          <label for="listing-url" class="sr-only">{{ t("evaluator.urlLabel") }}</label>
           <input
             id="listing-url"
             v-model.trim="url"
@@ -21,12 +18,12 @@
             required
           />
           <button class="btn-primary" :disabled="loading">
-            {{ loading ? "Checking…" : "Check listing" }}
+            {{ loading ? t("evaluator.checking") : t("evaluator.check") }}
           </button>
         </form>
         <div class="ev-links">
           <button type="button" class="link-btn" :disabled="loading" @click="evaluate(EXAMPLE_URL)">
-            Try it with a listing in Montreux
+            {{ t("evaluator.example") }}
           </button>
           <DemoVideo />
         </div>
@@ -39,8 +36,13 @@
         <header class="res-head">
           <h2 class="res-title">{{ listing.name }}</h2>
           <p class="res-sub">
-            {{ capitalize(roomTypeLabel(listing.room_type)) }} in {{ listing.neighborhood || "Vaud" }},
-            {{ listing.accommodates }} {{ listing.accommodates === 1 ? 'guest' : 'guests' }}
+            {{
+              t("evaluator.resultSub", {
+                type: capitalize(roomTypeLabel(listing.room_type)),
+                place: listing.neighborhood || "Vaud",
+                guests: t("evaluator.guests", { count: listing.accommodates }),
+              })
+            }}
           </p>
         </header>
 
@@ -54,96 +56,102 @@
 
         <div v-if="price" class="price-rule">
           <p class="rule-caption">
-            <strong>{{ formatCHF(listing.price) }}</strong> a night, {{ price.sentence }}
+            <strong>{{ formatCHF(listing.price) }}</strong> {{ t("evaluator.perNight", { sentence: price.sentence }) }}
           </p>
-          <div class="rule" role="img" :aria-label="`Listing ${formatCHF(listing.price)}, median ${formatCHF(listing.median_price)}`">
+          <div
+            class="rule"
+            role="img"
+            :aria-label="t('evaluator.ruleLabel', { price: formatCHF(listing.price), median: formatCHF(listing.median_price) })"
+          >
             <div class="rule-track"></div>
             <div class="rule-median" :style="{ left: price.medianPos + '%' }">
-              <span>median {{ formatCHF(listing.median_price) }}</span>
+              <span>{{ t("evaluator.median", { price: formatCHF(listing.median_price) }) }}</span>
             </div>
             <div class="rule-dot" :style="{ left: price.listingPos + '%' }"></div>
           </div>
-          <p v-if="listing.price_date" class="fine">Price seen on {{ formatDate(listing.price_date) }}.</p>
+          <p v-if="listing.price_date" class="fine">{{ t("evaluator.priceSeen", { date: formatDate(listing.price_date) }) }}</p>
         </div>
-        <p v-else class="fine">No recent price for this listing, so the price part of the score is neutral.</p>
+        <p v-else class="fine">{{ t("evaluator.noPrice") }}</p>
 
         <dl class="facts">
           <div>
-            <dt>Rating</dt>
-            <dd>{{ isNum(listing.rating) ? Number(listing.rating).toFixed(2) : "No rating" }}</dd>
-            <dd v-if="isNum(listing.neighborhood_avg_rating)" class="fact-ref">area {{ Number(listing.neighborhood_avg_rating).toFixed(2) }}</dd>
+            <dt>{{ t("evaluator.rating") }}</dt>
+            <dd>{{ isNum(listing.rating) ? formatNumber(listing.rating, 2) : t("evaluator.noRating") }}</dd>
+            <dd v-if="isNum(listing.neighborhood_avg_rating)" class="fact-ref">
+              {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_rating, 2) }) }}
+            </dd>
           </div>
           <div>
-            <dt>Reviews a month</dt>
-            <dd>{{ isNum(listing.reviews_per_month) ? Number(listing.reviews_per_month).toFixed(1) : "None" }}</dd>
-            <dd v-if="isNum(listing.neighborhood_avg_reviews_per_month)" class="fact-ref">area {{ Number(listing.neighborhood_avg_reviews_per_month).toFixed(1) }}</dd>
+            <dt>{{ t("evaluator.reviewsMonth") }}</dt>
+            <dd>{{ isNum(listing.reviews_per_month) ? formatNumber(listing.reviews_per_month, 1) : t("evaluator.noReviews") }}</dd>
+            <dd v-if="isNum(listing.neighborhood_avg_reviews_per_month)" class="fact-ref">
+              {{ t("evaluator.area", { value: formatNumber(listing.neighborhood_avg_reviews_per_month, 1) }) }}
+            </dd>
           </div>
           <div>
-            <dt>Superhost</dt>
-            <dd>{{ listing.host_is_superhost ? "Yes" : "No" }}</dd>
+            <dt>{{ t("evaluator.superhost") }}</dt>
+            <dd>{{ listing.host_is_superhost ? t("evaluator.yes") : t("evaluator.no") }}</dd>
           </div>
         </dl>
 
         <div class="amenities">
-          <h3>Key amenities</h3>
+          <h3>{{ t("evaluator.amenities") }}</h3>
           <ul>
             <li v-for="a in listing.amenities || []" :key="'y' + a" class="has">{{ amenityLabel(a) }}</li>
             <li v-for="a in listing.missing_amenities || []" :key="'n' + a" class="missing">
-              <span class="sr-only">Missing: </span>{{ amenityLabel(a) }}
+              <span class="sr-only">{{ t("evaluator.missing") }} </span>{{ amenityLabel(a) }}
             </li>
           </ul>
         </div>
 
         <div class="res-actions">
           <a class="res-link" :href="`https://www.airbnb.ch/rooms/${result.listing_id}`" target="_blank" rel="noopener">
-            Open this listing on Airbnb
+            {{ t("evaluator.openAirbnb") }}
           </a>
           <button type="button" class="share-btn" @click="shareResult">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4L12 5.6" />
               <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" />
             </svg>
-            {{ copied ? "Link copied" : "Share this result" }}
+            {{ copied ? t("evaluator.copied") : t("evaluator.share") }}
           </button>
         </div>
-        <span class="sr-only" aria-live="polite">{{ copied ? "Link copied to the clipboard" : "" }}</span>
+        <span class="sr-only" aria-live="polite">{{ copied ? t("evaluator.copiedAnnounce") : "" }}</span>
       </article>
 
       <!-- Before any check: explain the score instead of showing fake data -->
       <aside v-else class="panel how">
-        <h2>How the score works</h2>
-        <p>Each listing gets a score out of 100, built from four parts:</p>
+        <h2>{{ t("evaluator.howTitle") }}</h2>
+        <p>{{ t("evaluator.howIntro") }}</p>
         <ul class="weights">
-          <li v-for="w in WEIGHTS" :key="w.label">
+          <li v-for="w in WEIGHTS" :key="w.key">
             <span class="w-bar" :style="{ width: w.pct * 2 + '%' }"></span>
             <span class="w-pct">{{ w.pct }}%</span>
-            <span class="w-label">{{ w.label }}</span>
+            <span class="w-label">{{ t(`evaluator.weights.${w.key}`) }}</span>
           </li>
         </ul>
-        <p class="fine">
-          Based on public InsideAirbnb data. Listings are compared with the same room type in the same neighbourhood.
-        </p>
+        <p class="fine">{{ t("evaluator.howNote") }}</p>
       </aside>
 
       <!-- AI read of the listing: fills the column under the form while the result card is tall -->
       <section v-if="result && hasAnalysis" class="analysis" aria-labelledby="analysis-title">
-        <h2 id="analysis-title">What stands out</h2>
+        <h2 id="analysis-title">{{ t("evaluator.analysisTitle") }}</h2>
         <p v-if="summary" class="analysis-summary">{{ summary }}</p>
         <div class="analysis-cols">
           <div v-if="pros.length">
-            <h3>Strengths</h3>
+            <h3>{{ t("evaluator.strengths") }}</h3>
             <ul>
-              <li v-for="(t, i) in pros" :key="'p' + i" class="pro">{{ t }}</li>
+              <li v-for="(text, i) in pros" :key="'p' + i" class="pro">{{ text }}</li>
             </ul>
           </div>
           <div v-if="cons.length">
-            <h3>Watch out for</h3>
+            <h3>{{ t("evaluator.watchOut") }}</h3>
             <ul>
-              <li v-for="(t, i) in cons" :key="'c' + i" class="con">{{ t }}</li>
+              <li v-for="(text, i) in cons" :key="'c' + i" class="con">{{ text }}</li>
             </ul>
           </div>
         </div>
-        <p class="fine">Written by an AI model from this listing's numbers. It can make mistakes.</p>
+        <p class="fine">{{ t("evaluator.aiNote") }}</p>
       </section>
     </div>
   </section>
@@ -151,22 +159,25 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { locale, t } from "../i18n";
 import { apiPost } from "../lib/api";
-import { formatCHF, isNum, amenityLabel, roomTypeLabel } from "../lib/format";
+import { amenityLabel, formatCHF, formatDate, formatNumber, isNum, roomTypeLabel } from "../lib/format";
 import { priceComparison, scoreErrorMessage, verdictFor } from "../lib/score";
 import DemoVideo from "./DemoVideo.vue";
 
 const EXAMPLE_URL = "https://www.airbnb.ch/rooms/53584592";
 const WEIGHTS = [
-  { pct: 45, label: "Price against similar stays nearby" },
-  { pct: 30, label: "Review activity against the area" },
-  { pct: 15, label: "Key amenities" },
-  { pct: 10, label: "Superhost" },
+  { pct: 45, key: "price" },
+  { pct: 30, key: "reviews" },
+  { pct: 15, key: "amenities" },
+  { pct: 10, key: "superhost" },
 ];
 
 const url = ref("");
 const loading = ref(false);
-const error = ref("");
+// HTTP status of the failed check (0 without one), so the message follows the language
+const errorStatus = ref(null);
+const error = computed(() => (errorStatus.value === null ? "" : scoreErrorMessage(errorStatus.value)));
 const result = ref(null);
 const shownScore = ref(0);
 const resultEl = ref(null);
@@ -179,18 +190,17 @@ const summary = computed(() => result.value?.analysis?.summary || "");
 const hasAnalysis = computed(() => pros.value.length > 0 || cons.value.length > 0 || !!summary.value);
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const formatDate = (d) =>
-  new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
 const verdict = computed(() => verdictFor(result.value?.smart_score));
 const price = computed(() => priceComparison(listing.value));
 
-// One orchestrated moment: the score counts up when a result arrives.
-watch(result, (r) => {
+// One orchestrated moment: the score counts up when a result arrives
+// (not again when the same listing comes back in another language).
+watch(result, (r, previous) => {
   if (!r) return (shownScore.value = 0);
   const target = Number(r?.smart_score ?? 0);
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) return (shownScore.value = target);
+  if (reduce || previous?.listing_id === r.listing_id) return (shownScore.value = target);
   const start = performance.now();
   const step = (now) => {
     const t = Math.min(1, (now - start) / 700);
@@ -221,7 +231,7 @@ function checkFromAddress() {
   if (id) return evaluate(`https://www.airbnb.ch/rooms/${id}`, { updateAddress: false });
   // Back to the page without a listing: show the empty state again
   result.value = null;
-  error.value = "";
+  errorStatus.value = null;
   url.value = "";
 }
 
@@ -234,7 +244,7 @@ onBeforeUnmount(() => window.removeEventListener("popstate", checkFromAddress));
 let copiedTimer;
 async function shareResult() {
   const link = shareUrl(result.value.listing_id);
-  const text = `${listing.value.name}: ${result.value.smart_score}/100 on SmartBnB`;
+  const text = t("evaluator.shareText", { name: listing.value.name, score: result.value.smart_score });
   // Phones open the native share sheet (WhatsApp, Messages...); desktops copy the link
   if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
     try {
@@ -249,7 +259,7 @@ async function shareResult() {
     clearTimeout(copiedTimer);
     copiedTimer = setTimeout(() => (copied.value = false), 2000);
   } catch {
-    window.prompt("Copy this link:", link);
+    window.prompt(t("evaluator.copyPrompt"), link);
   }
 }
 
@@ -257,26 +267,44 @@ async function evaluate(fromUrl, { updateAddress = true } = {}) {
   if (fromUrl) url.value = fromUrl;
   if (!url.value) return;
   loading.value = true;
-  error.value = "";
+  errorStatus.value = null;
   // Hide the previous listing so its score is never read as the answer to this link
   result.value = null;
+  const lang = locale.value;
   try {
-    const data = await apiPost("/score", { airbnbUrl: url.value });
+    const data = await apiPost("/score", { airbnbUrl: url.value, lang });
     if (!data?.ok) throw new Error("Evaluation failed");
     result.value = data;
     if (updateAddress && listingFromAddress() !== String(data.listing_id)) {
       history.pushState(null, "", shareUrl(data.listing_id));
     }
     scrollToResult();
+    // The language changed while the check was running
+    if (lang !== locale.value) refreshAnalysis();
   } catch (e) {
     console.error(e);
     // The address must not keep pointing to a listing that is no longer shown
     if (updateAddress && listingFromAddress()) history.pushState(null, "", window.location.pathname);
-    error.value = scoreErrorMessage(e.status);
+    errorStatus.value = e.status ?? 0;
   } finally {
     loading.value = false;
   }
 }
+
+// The AI analysis is written in the visitor's language: after a language switch,
+// ask for the shown listing again. The current result stays on screen meanwhile,
+// and also if this fails.
+async function refreshAnalysis() {
+  const id = result.value?.listing_id;
+  if (!id || loading.value) return;
+  try {
+    const data = await apiPost("/score", { airbnbUrl: id, lang: locale.value });
+    if (data?.ok && result.value?.listing_id === id) result.value = data;
+  } catch (e) {
+    console.error(e);
+  }
+}
+watch(locale, refreshAnalysis);
 </script>
 
 <style scoped>
@@ -306,7 +334,10 @@ h1 {
   font-weight: 800;
   margin: 0 0 24px;
   max-width: 11ch;
+  /* Even lines whatever the language: the French title is longer */
+  text-wrap: balance;
 }
+h1:lang(fr) { max-width: 13ch; }
 .lede { font-size: 1.15rem; color: var(--ink-2); max-width: 44ch; margin: 0 0 32px; }
 
 .ev-form {

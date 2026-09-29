@@ -1,0 +1,193 @@
+{
+  "locale": {
+    "name": "English",
+    "short": "EN",
+    "intl": "en-GB",
+    "money": "de-CH"
+  },
+  "page": {
+    "title": "SmartBnB: is this Airbnb a good deal?"
+  },
+  "nav": {
+    "skip": "Skip to the listing check",
+    "home": "SmartBnB home",
+    "sections": "Sections",
+    "evaluate": "Check a listing",
+    "map": "Price map",
+    "top10": "Top 10",
+    "trends": "Price trends",
+    "language": "Language"
+  },
+  "footer": {
+    "credits": "Built by Adam Gruber, Axel Pittet and Edison Sahitaj.",
+    "dataFrom": "Listing data from",
+    "cleaned": "cleaned and aggregated",
+    "mapsFrom": "maps from",
+    "source": "Source on GitHub"
+  },
+  "evaluator": {
+    "title": "Is this Airbnb a good deal?",
+    "lede": "Paste a listing from canton Vaud. SmartBnB compares its nightly price, reviews and amenities with similar stays in the same area.",
+    "urlLabel": "Airbnb listing link",
+    "checking": "Checking…",
+    "check": "Check listing",
+    "example": "Try it with a listing in Montreux",
+    "resultSub": "{type} in {place}, {guests}",
+    "guests": {
+      "one": "{count} guest",
+      "other": "{count} guests"
+    },
+    "perNight": "a night, {sentence}",
+    "ruleLabel": "Listing {price}, median {median}",
+    "median": "median {price}",
+    "priceSeen": "Price seen on {date}.",
+    "noPrice": "No recent price for this listing, so the price part of the score is neutral.",
+    "rating": "Rating",
+    "noRating": "No rating",
+    "reviewsMonth": "Reviews a month",
+    "noReviews": "None",
+    "area": "area {value}",
+    "superhost": "Superhost",
+    "yes": "Yes",
+    "no": "No",
+    "amenities": "Key amenities",
+    "missing": "Missing:",
+    "openAirbnb": "Open this listing on Airbnb",
+    "share": "Share this result",
+    "copied": "Link copied",
+    "copiedAnnounce": "Link copied to the clipboard",
+    "shareText": "{name}: {score}/100 on SmartBnB",
+    "copyPrompt": "Copy this link:",
+    "howTitle": "How the score works",
+    "howIntro": "Each listing gets a score out of 100, built from four parts:",
+    "weights": {
+      "price": "Price against similar stays nearby",
+      "reviews": "Review activity against the area",
+      "amenities": "Key amenities",
+      "superhost": "Superhost"
+    },
+    "howNote": "Based on public InsideAirbnb data. Listings are compared with the same room type in the same neighbourhood.",
+    "analysisTitle": "What stands out",
+    "strengths": "Strengths",
+    "watchOut": "Watch out for",
+    "aiNote": "Written by an AI model from this listing's numbers. It can make mistakes."
+  },
+  "verdict": {
+    "good": {
+      "word": "Worth booking",
+      "note": "Better value than most comparable stays."
+    },
+    "fair": {
+      "word": "Fair deal",
+      "note": "In line with what the area offers."
+    },
+    "poor": {
+      "word": "Look around",
+      "note": "Similar stays nearby offer more for the money."
+    }
+  },
+  "price": {
+    "at": "right at the median {where}.",
+    "below": "{pct}% below the median {where}.",
+    "above": "{pct}% above the median {where}.",
+    "where": "for {type} in {place}"
+  },
+  "roomType": {
+    "entire": "entire home",
+    "private": "private room",
+    "shared": "shared room",
+    "hotel": "hotel room",
+    "other": "stay"
+  },
+  "roomTypeWithArticle": {
+    "entire": "an entire home",
+    "private": "a private room",
+    "shared": "a shared room",
+    "hotel": "a hotel room",
+    "other": "a stay"
+  },
+  "amenity": {
+    "WIFI": "Wi-Fi",
+    "KITCHEN": "Kitchen",
+    "HEATING": "Heating",
+    "AC": "Air conditioning",
+    "PARKING": "Parking",
+    "WASHER": "Washer",
+    "DRYER": "Dryer",
+    "WORKSPACE": "Workspace",
+    "ENTRANCE": "Private entrance",
+    "HOTTUB": "Hot tub"
+  },
+  "scoreError": {
+    "400": "That link doesn't look like an Airbnb listing. Paste the link shared from the Airbnb app, or one that contains /rooms/ followed by a number.",
+    "404": "This listing isn't in our data. SmartBnB only covers listings in canton Vaud that InsideAirbnb has recorded.",
+    "422": "We couldn't open this share link. Open it in your browser and copy the address from there: it should contain /rooms/ followed by a number.",
+    "429": "You've checked a lot of listings in a short time. Wait a little and try again.",
+    "other": "The check didn't go through. Try again in a moment."
+  },
+  "demo": {
+    "watch": "Watch the demo (1 min)",
+    "dialog": "SmartBnB demo video",
+    "close": "Close video"
+  },
+  "map": {
+    "touchHint": "Use two fingers to move the map"
+  },
+  "heatmap": {
+    "title": "Where stays cost more",
+    "intro": "Every active listing in canton Vaud, coloured by its nightly price. Circles group nearby listings and show their median price in CHF. Zoom in to see single stays.",
+    "loading": "Loading the map…",
+    "error": "The price map couldn't load. Reload the page to try again.",
+    "perNight": "a night",
+    "tooltip": "{price} a night"
+  },
+  "top10": {
+    "title": "Top 10 stays right now",
+    "intro": "Rankings among listings active in the latest data. Pick a list, hover a stay to find it on the map, click to open it on Airbnb.",
+    "tabsLabel": "Top 10 lists",
+    "tabs": {
+      "rating": {
+        "label": "Best rated",
+        "hint": "Great ratings from many guests."
+      },
+      "price": {
+        "label": "Cheapest",
+        "hint": "Lowest nightly prices among stays you can book for less than a month."
+      },
+      "reviews": {
+        "label": "Most reviewed this year",
+        "hint": "Most guest reviews over the last 12 months."
+      }
+    },
+    "loading": "Loading the rankings…",
+    "error": "The rankings couldn't load. Reload the page to try again.",
+    "untitled": "Untitled listing",
+    "noPrice": "No price",
+    "reviews": {
+      "one": "{count} review",
+      "other": "{count} reviews"
+    },
+    "minMonths": {
+      "one": "Min. {count} month",
+      "other": "Min. {count} months"
+    },
+    "minNights": {
+      "one": "Min. {count} night",
+      "other": "Min. {count} nights"
+    }
+  },
+  "trends": {
+    "title": "Prices this year",
+    "intro": "Change in the median nightly price of each district over the last 12 months of data.",
+    "loading": "Loading the trends…",
+    "error": "The price trends couldn't load. Reload the page to try again.",
+    "empty": "No price trend is available yet.",
+    "unknown": "Unknown"
+  },
+  "openSource": {
+    "label": "Open source",
+    "lead": "SmartBnB is open source.",
+    "body": "Found a bug or have an idea? Every contribution is read and answered.",
+    "link": "Contribute on GitHub"
+  }
+}
