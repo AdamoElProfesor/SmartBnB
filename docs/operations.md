@@ -40,10 +40,13 @@ runs every Monday at 05:23 UTC (and on demand from the Actions tab):
 1. It checks out the private `SmartBnB-data` repository (the snapshot
    archive) into `data/snapshots`, with a deploy key that can only write to
    that repository (secret `SNAPSHOTS_DEPLOY_KEY`).
-2. `load_data.py --fetch` downloads the newest Inside Airbnb snapshot if
-   there is one, loads it, recomputes prices and stats (including the prices
-   collected by `data/prices`), audits the result and publishes it only if
-   no blocking check fails (see [Data quality](../data/db/README.md#data-quality)).
+2. `pipeline.py --fetch` downloads the newest Inside Airbnb snapshot if
+   there is one and loads it into the `build` schema; `dbt build`
+   ([data/transform](../data/transform/README.md)) recomputes prices and
+   stats (including the prices collected by `data/prices`) and tests them;
+   the result is published into `public` and audited in one transaction,
+   committed only if no blocking check fails (see
+   [Data quality](../data/db/README.md#data-quality)).
 3. A new snapshot file is committed and pushed to `SmartBnB-data`, never to
    this public repository (the Inside Airbnb data policies ask not to
    republish the data).

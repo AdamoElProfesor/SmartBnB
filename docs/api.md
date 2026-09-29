@@ -201,8 +201,8 @@ minutes (`READ_CACHE_TTL_MS`), since it only changes when a snapshot is loaded.
 
 Returns the change of the median nightly price per region, in percent, between
 the first priced scrape of the last 12 months and the latest priced scrape.
-The values are precomputed at each load (`price_trends` table, see
-`data/db/load_data.py`) and cached in memory like the heatmap.
+The values are precomputed at each data refresh (`price_trends` table, see
+`data/transform/models/marts/price_trends.sql`) and cached in memory like the heatmap.
 
 ### Response
 

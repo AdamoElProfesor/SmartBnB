@@ -6,11 +6,27 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | --- | --- |
 | `schema.sql` | Creates all tables (drops them first) |
 | `seed.sql` | The 10 amenity categories and their score weights |
-| `load_data.py` | Loads every CSV in `data/`, recomputes the stats tables, audits and publishes them |
-| `quality.py` | The quality checks of each load (see [Data quality](#data-quality)) |
+| `pipeline.py` | Runs the pipeline: extract-load, dbt build, publish, audit (see [Data quality](#data-quality)) |
+| `load_data.py` | Extract and load: downloads the snapshots and loads them, typed but otherwise as received, into the `build` schema |
+| `publish.py` | Copies the checked `build` tables into the `public` tables the site reads |
+| `quality.py` | The audit of each run (see [Data quality](#data-quality)) |
 | `roles.sql` | Least-privilege roles for the backend, the backup and the loader (see below) |
 | `migrations/` | Changes to apply to an existing database, see [Migrations](#migrations) |
-| `tests/` | Tests of the loader and of the checks: `pip install -r requirements-dev.txt`, then `pytest` |
+| `tests/` | Tests of the pipeline and of the checks: `pip install -r requirements-dev.txt`, then `pytest`; `tests/e2e_pipeline.py` runs the whole pipeline on synthetic data (CI) |
+
+The transformations (the T of ELT) are dbt models in
+[`data/transform`](../transform/README.md): they turn the raw tables into the
+tables the site reads, with the business rules, tests and documentation.
+
+```
+Inside Airbnb files ──> load_data.py ──> build.airbnb_* (raw)
+price_observations ───────────────────┐        │
+                                      dbt build: staging → intermediate → marts, tests
+                                               │
+                            publish.py + quality.py, one transaction
+                                               │
+                                       public.* (the site)
+```
 
 ## Tables
 
@@ -25,11 +41,16 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `neighbourhood_stats` | Average review score and reviews per month per neighbourhood |
 | `current_prices` | Latest plausible price per listing (last 6 months) |
 | `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
-| `etl_runs` | One row per run of `load_data.py`: metrics and quality check results |
+| `etl_runs` | One row per run of `pipeline.py`: metrics and quality check results |
 | `ai_analyses` | Cache of the AI analysis per listing, data version, model and language (filled by the backend) |
-| `raw_airbnb_vaud` | Legacy staging table from the old Airflow DAG (not used by `load_data.py`) |
 
-The stats tables are computed over the last 3 months of scrapes (`--stats-months`).
+The first three are loaded by `load_data.py`; `airbnb_points`,
+`current_prices` and the stats and trends tables are dbt marts. The stats
+tables are computed over the last 3 months of scrapes (`--stats-months`).
+
+The `build` schema holds the next version of all of them while a run
+prepares it. The site never reads it, the backups skip it and the Supabase
+API does not expose it.
 
 ## Setup
 
@@ -56,16 +77,16 @@ pip install -r requirements.txt
 
 git clone git@github.com:AdamoElProfesor/SmartBnB-data.git ../snapshots   # private
 echo DATABASE_URL=postgresql://... > .env
-python load_data.py --init    # creates the schema, seeds, loads the CSVs
+python pipeline.py --init     # creates the schema, seeds, loads, transforms, publishes
 ```
 
 Then keep it up to date. The weekly `data-refresh.yml` workflow does it (see
-[operations.md](../../docs/operations.md#data-refresh)), or run the loader by hand:
+[operations.md](../../docs/operations.md#data-refresh)), or run the pipeline by hand:
 
 ```bash
-python load_data.py --fetch                  # download + add the latest InsideAirbnb snapshot
-python load_data.py --dates 2025-07-04 ...   # download + add specific snapshots
-python load_data.py --full                   # wipe and reload every file on disk
+python pipeline.py --fetch                  # download + add the latest InsideAirbnb snapshot
+python pipeline.py --dates 2025-07-04 ...   # download + add specific snapshots
+python pipeline.py --full                   # rebuild everything from the files on disk
 ```
 
 Snapshots come from `data/snapshots/*.csv.gz`, every month since July 2024.
@@ -90,33 +111,45 @@ python load_data.py --check      # list the files with unpublished columns
 python load_data.py --minimize   # rewrite them with PUBLISHED_COLS only
 ```
 
-Prices below 5 CHF are treated as missing: the Swiss scrapes of June to
-September 2026 first shipped a broken price column. Inside Airbnb republished
-them with corrected prices; a republished file keeps its scrape id, so it is
-loaded again with `python load_data.py --reload <date> ...`, which replaces
-that scrape in the same transaction as the audit. `current_prices` holds each listing's newest valid
-price, from the snapshots or from the monthly price collection in
+Prices below 5 CHF are treated as missing (the `stg_snapshots` dbt model):
+the Swiss scrapes of June to September 2026 first shipped a broken price
+column. Inside Airbnb republished them with corrected prices; a republished
+file keeps its scrape id, so it is loaded again with
+`python pipeline.py --reload <date> ...`, which replaces that scrape before
+the audit. `current_prices` holds each listing's newest valid price, from the
+snapshots or from the monthly price collection in
 [`data/prices`](../prices/README.md), and the neighbourhood medians use one
-price per listing.
+price per listing. These rules are the `vars` of
+[`data/transform/dbt_project.yml`](../transform/dbt_project.yml).
 
 ## Data quality
 
-Every load follows **Write-Audit-Publish**, in one transaction:
+Every run follows **Write-Audit-Publish**: the site only ever sees data that
+passed every check.
 
-1. **Write**: new scrapes are added and the price and stats tables are
-   recomputed. Prices outside 20 to 5,000 CHF a night are skipped (a
-   listing then keeps its previous plausible price).
-2. **Audit**: `quality.py` measures the result the way the site would see it
-   and checks each measure.
-3. **Publish**: the transaction is committed only if no blocking check
-   failed. Otherwise it is rolled back and the site keeps the previous data.
+1. **Write**: `load_data.py` copies the published raw tables into the
+   `build` schema and adds the new scrapes; `dbt build` turns them into the
+   tables the site reads, still in `build`. Prices outside 20 to 5,000 CHF a
+   night are skipped (a listing then keeps its previous plausible price).
+2. **Audit, part 1**: `dbt build` tests every model as it builds it (keys
+   unique and present, links between tables, accepted values, ranges, and
+   unit tests of the business rules). A failing test stops the run.
+3. **Publish and audit, part 2**: one transaction refills the public tables
+   from `build`, then `quality.py` measures them the way the site will see
+   them and checks each measure. The transaction is committed only if no
+   blocking check failed. Otherwise it is rolled back and the site keeps the
+   previous data.
+
+The public tables are emptied and refilled, not dropped and recreated, so
+they keep their keys, indexes, grants and row level security policies.
 
 | Kind | Checks | When it fails |
 | --- | --- | --- |
 | Volume | listings in the latest scrape, listings with a price | blocks |
 | Validity | share of active listings with a price, median price 60 to 400 CHF, no price outside the range | blocks |
 | Consistency | known room types, coordinates present and inside canton Vaud, stats tables not empty | blocks |
-| Drift | listings or prices down more than 30% since the last published run | blocks |
+| Model tests | every dbt test (see [data/transform](../transform/README.md#tests)) | blocks (a `warn` test warns) |
+| Drift | listings or prices down more than 30% since the last published run, a scrape of the history lost | blocks |
 | Drift | median price moved more than 20% since the last published run | warns |
 | Freshness | newest scrape or newest price older than 45 days | warns |
 | Reliability | more than 2% of collected prices dropped, more than 25% of listings compared with fewer than 5 similar ones | warns |
@@ -131,10 +164,11 @@ SELECT id, started_at, trigger, status, new_scrapes,
 FROM etl_runs ORDER BY id DESC LIMIT 10;
 ```
 
-`python load_data.py --dry-run` runs the whole load and audit, then rolls
-back: a safe way to try a change against the real database. Exit code: 0
-published, 2 published with warnings, 1 blocked or failed. The weekly
-[Data refresh workflow](../../docs/operations.md#data-refresh) runs the load
+`python pipeline.py --dry-run` runs every step, then rolls the publication
+back: a safe way to try a change against the real database (only the
+`build` schema changes). Exit code: 0 published, 2 published with warnings,
+1 blocked or failed. The weekly
+[Data refresh workflow](../../docs/operations.md#data-refresh) runs the pipeline
 in GitHub Actions and emails on anything but 0.
 
 ### 3. Point the backend at it
@@ -154,7 +188,7 @@ roles that can only do what their job needs:
 | --- | --- | --- |
 | `smartbnb_app` | backend (Render `DATABASE_URL`) | read every table, insert into `ai_analyses` |
 | `smartbnb_backup` | `pg_dump` (GitHub secret `BACKUP_DATABASE_URL`) | read every table and sequence |
-| `smartbnb_loader` | Data refresh workflow (GitHub secret `LOADER_DATABASE_URL`) | read every table, rewrite the listing and stats tables, write `etl_runs`; no DDL, no write on `price_observations` |
+| `smartbnb_loader` | Data refresh workflow (GitHub secret `LOADER_DATABASE_URL`) | read every table, create tables in the `build` schema only, refill the listing and stats tables, write `etl_runs`; no DDL on `public`, no write on `price_observations` |
 
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
@@ -164,11 +198,13 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f data/db/roles.sql
 ```
 
-Run it once: `schema.sql` (and `load_data.py --init`) gives the grants and
+Run it once: `schema.sql` (and `pipeline.py --init`) gives the grants and
 policies back whenever it recreates the tables. On the Supabase pooler the
 user name is `<role>.<project ref>`; the loader needs the session pooler
-(port 5432). Keep `postgres` for `schema.sql`, `load_data.py --init` and
-the price scraper.
+(port 5432). Keep `postgres` for `schema.sql`, `pipeline.py --init` and
+the price scraper. Run the other pipeline runs as `smartbnb_loader`: the
+`build` tables belong to whoever created them, and the loader could not
+replace tables that `postgres` created there.
 
 ## Migrations
 
@@ -187,3 +223,4 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | Migration | Change |
 | --- | --- |
 | `2026-09-29-ai-analyses-lang.sql` | `ai_analyses.lang` in the primary key: one cached analysis per language |
+| `2026-09-30-build-schema.sql` | `build` schema for the pipeline (the loader may create tables there), legacy `raw_airbnb_vaud` dropped |

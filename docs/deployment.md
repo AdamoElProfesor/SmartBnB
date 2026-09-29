@@ -7,10 +7,10 @@ database loaded with the Inside Airbnb data.
 ## 1) Database
 
 Create the schema and load the data as described in
-[data/db/README.md](../data/db/README.md) (`python load_data.py --init` creates
-the schema, seeds the reference tables and loads the CSVs; running only
-`schema.sql` then `load_data.py` fails because the amenity references are
-empty). A local Postgres or a free Supabase project both work.
+[data/db/README.md](../data/db/README.md) (`python pipeline.py --init` creates
+the schema, seeds the reference tables, loads the CSVs and builds the tables
+the site reads; running only `schema.sql` then `pipeline.py` fails because
+the amenity references are empty). A local Postgres or a free Supabase project both work.
 
 ## 2) Environment
 
