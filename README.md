@@ -1,4 +1,9 @@
-# SmartBnB
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img src="docs/brand/logo.svg" alt="SmartBnB" width="300">
+  </picture>
+</h1>
 
 **Is this Airbnb a good deal?** Paste an Airbnb listing from canton Vaud,
 Switzerland, and SmartBnB compares it with similar stays nearby: price, review
@@ -52,7 +57,7 @@ flowchart LR
 | [`smartbnb/backend`](smartbnb/backend) | Node.js + Express API, also serves the built app |
 | [`data`](data) | Loader that fills the database from the Inside Airbnb snapshots, price collection |
 | [`cloudflare`](cloudflare) | Workers: domain relay, AI endpoint, keep-alive |
-| [`docs`](docs) | Guides for running, deploying and operating the app |
+| [`docs`](docs) | Guides for running, deploying and operating the app, plus the logo files ([`docs/brand`](docs/brand)) |
 
 ## Run it locally
 
