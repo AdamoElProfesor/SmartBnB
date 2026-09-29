@@ -1,5 +1,5 @@
 -- Price of the current market per neighbourhood and room type: one price per
--- listing (its latest), among prices seen in the last stats_window_months
+-- active listing (its latest), among prices seen in the last stats_window_months
 with prices as (
     select * from {{ ref('current_prices') }}
 )
@@ -11,7 +11,7 @@ select
     percentile_cont(0.5) within group (order by p.price) as median_price,
     count(*) as count_airbnb
 from prices as p
-join {{ ref('stg_listings') }} as l on l.listing_id = p.listing_id
+join {{ ref('int_active_listings') }} as l on l.listing_id = p.listing_id
 where p.price_date >= (select max(price_date) from prices)
                       - make_interval(months => {{ var('stats_window_months') }})
   and l.neighbourhood is not null

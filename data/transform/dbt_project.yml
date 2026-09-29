@@ -26,6 +26,12 @@ vars:
   stats_window_months: 3
   # "Prices this year": first priced scrape of this window against the latest
   trend_window_months: 12
+  # A listing is active (still on Airbnb) when it is in one of the last
+  # active_scrapes scrapes. 1 would be exact, but a single partial file
+  # (2026-01-15 had 3,851 rows instead of about 5,500) would then mark
+  # thousands of real listings as gone; 2 keeps a listing that left for one
+  # more month at most.
+  active_scrapes: 2
 
 models:
   smartbnb:

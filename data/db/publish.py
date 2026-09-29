@@ -15,7 +15,7 @@ from load_data import BUILD_SCHEMA, RAW_TABLES
 
 # dbt marts that the site reads, published under the same names
 MART_TABLES = (
-    "airbnb_points", "current_prices",
+    "listing_activity", "airbnb_points", "current_prices",
     "neighbourhood_room_type_stats", "neighbourhood_stats", "price_trends",
 )
 # Foreign key order: listings first

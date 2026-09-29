@@ -21,6 +21,7 @@ HEALTHY = {
     "review_stat_neighbourhoods": 243,
     "amenity_scores": 9431,
     "scrapes": 27,
+    "active_not_in_latest_share": 0.04,
 }
 
 
@@ -60,6 +61,8 @@ def test_broken_load_is_blocked(change, check):
     ({"price_age_days": 90}, "price_age_days"),
     ({"small_group_share": 0.4}, "small_group_share"),
     ({"excluded_price_observations": 500}, "excluded_price_observations"),
+    # A partial scrape: many active listings are only in the one before
+    ({"active_not_in_latest_share": 0.3}, "active_not_in_latest_share"),
 ])
 def test_suspicious_load_is_published_with_warnings(change, check):
     results = quality.evaluate({**HEALTHY, **change})

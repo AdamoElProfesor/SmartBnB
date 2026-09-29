@@ -16,7 +16,7 @@ models:
           - not_null
           - relationships:
               arguments:
-                to: ref('stg_listings')
+                to: ref('int_active_listings')
                 field: listing_id
       - name: price
         description: Nightly price in CHF.
@@ -143,7 +143,63 @@ models:
       - name: pct
         description: Change in percent, null when start_median is 0.
 
+  - name: listing_activity
+    description: >
+      Lifetime of each listing on Airbnb. A listing is active when it is in
+      one of the last active_scrapes scrapes (2): exact enough, and a single
+      partial file does not mark real listings as gone. The site does not
+      score a listing that is not active, and no statistic of the current
+      market counts it.
+    columns:
+      - name: listing_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+      - name: first_seen
+        description: Day of the listing's first scrape.
+        data_tests: [not_null]
+      - name: last_seen
+        description: Day of the listing's latest scrape.
+        data_tests: [not_null]
+      - name: last_scrape_id
+        description: Scrape id of the listing's latest snapshot.
+        data_tests: [not_null]
+      - name: scrapes_seen
+        description: Number of scrapes the listing appears in.
+        data_tests: [not_null]
+      - name: is_active
+        description: In one of the last active_scrapes scrapes, so presumably still on Airbnb.
+        data_tests: [not_null]
+
 unit_tests:
+  - name: a_listing_is_active_until_it_misses_two_scrapes
+    description: >
+      Three scrapes, the latest one partial. A listing in every scrape is
+      active; a listing missing only from the partial scrape stays active;
+      a listing only in the first scrape has left; a new listing is active
+      from its first scrape.
+    model: listing_activity
+    given:
+      - input: ref('stg_snapshots')
+        rows:
+          - {listing_id: 1, scrape_id: 100, last_scraped: "2026-07-10"}
+          - {listing_id: 1, scrape_id: 200, last_scraped: "2026-08-10"}
+          - {listing_id: 1, scrape_id: 300, last_scraped: "2026-09-10"}
+          - {listing_id: 2, scrape_id: 100, last_scraped: "2026-07-10"}
+          - {listing_id: 2, scrape_id: 200, last_scraped: "2026-08-10"}
+          - {listing_id: 3, scrape_id: 100, last_scraped: "2026-07-10"}
+          - {listing_id: 4, scrape_id: 300, last_scraped: "2026-09-10"}
+    expect:
+      rows:
+        - {listing_id: 1, first_seen: "2026-07-10", last_seen: "2026-09-10", scrapes_seen: 3, is_active: true}
+        - {listing_id: 2, first_seen: "2026-07-10", last_seen: "2026-08-10", scrapes_seen: 2, is_active: true}
+        - {listing_id: 3, first_seen: "2026-07-10", last_seen: "2026-07-10", scrapes_seen: 1, is_active: false}
+        - {listing_id: 4, first_seen: "2026-09-10", last_seen: "2026-09-10", scrapes_seen: 1, is_active: true}
+
   - name: a_listing_without_review_counts_as_zero
     description: >
       A listing with no review lowers the reviews baseline as a 0 (the value
@@ -156,7 +212,7 @@ unit_tests:
           - {listing_id: 1, number_of_reviews: 50, reviews_per_month: 2.0, review_scores_rating: 4.8}
           - {listing_id: 2, number_of_reviews: 0, reviews_per_month: null, review_scores_rating: null}
           - {listing_id: 3, number_of_reviews: 10, reviews_per_month: 1.0, review_scores_rating: 4.0}
-      - input: ref('stg_listings')
+      - input: ref('int_active_listings')
         rows:
           - {listing_id: 1, neighbourhood: "Lausanne"}
           - {listing_id: 2, neighbourhood: "Lausanne"}
@@ -181,7 +237,7 @@ unit_tests:
           - {listing_id: 3, price: 80, price_date: "2026-08-01", source: insideairbnb}
           - {listing_id: 3, price: 85, price_date: "2026-08-01", source: scrape_listing}
           - {listing_id: 4, price: 70, price_date: "2026-09-01", source: insideairbnb}
-      - input: ref('stg_listings')
+      - input: ref('int_active_listings')
         rows:
           - {listing_id: 1}
           - {listing_id: 2}
