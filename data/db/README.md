@@ -9,6 +9,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `load_data.py` | Loads every CSV in `data/`, recomputes the stats tables, audits and publishes them |
 | `quality.py` | The quality checks of each load (see [Data quality](#data-quality)) |
 | `roles.sql` | Least-privilege roles for the backend, the backup and the loader (see below) |
+| `migrations/` | Changes to apply to an existing database, see [Migrations](#migrations) |
 | `tests/` | Tests of the loader and of the checks: `pip install -r requirements-dev.txt`, then `pytest` |
 
 ## Tables
@@ -25,6 +26,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `current_prices` | Latest plausible price per listing (last 6 months) |
 | `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
 | `etl_runs` | One row per run of `load_data.py`: metrics and quality check results |
+| `ai_analyses` | Cache of the AI analysis per listing, data version, model and language (filled by the backend) |
 | `raw_airbnb_vaud` | Legacy staging table from the old Airflow DAG (not used by `load_data.py`) |
 
 The stats tables are computed over the last 3 months of scrapes (`--stats-months`).
@@ -167,3 +169,21 @@ policies back whenever it recreates the tables. On the Supabase pooler the
 user name is `<role>.<project ref>`; the loader needs the session pooler
 (port 5432). Keep `postgres` for `schema.sql`, `load_data.py --init` and
 the price scraper.
+
+## Migrations
+
+`schema.sql` drops and recreates the tables, which is fine for a new
+database but not for production, where `ai_analyses` and `price_observations`
+hold data that cannot be reloaded. A change to an existing table therefore
+also gets a script in `migrations/`, named by date, that brings a database
+from the previous schema to the new one without losing rows. Each script can
+be run twice without harm. Apply them in date order, as `postgres`, before
+deploying the code that needs them:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
+```
+
+| Migration | Change |
+| --- | --- |
+| `2026-09-29-ai-analyses-lang.sql` | `ai_analyses.lang` in the primary key: one cached analysis per language |
