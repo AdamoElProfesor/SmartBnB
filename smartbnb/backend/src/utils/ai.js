@@ -3,6 +3,9 @@ const OpenAI = require("openai");
 
 const EMPTY_ANALYSIS = { pros: [], cons: [], summary: "" };
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+// Languages the analysis can be written in, as named in the prompt
+const LANGUAGES = { en: "English", fr: "French" };
+const DEFAULT_LANG = "en";
 // A hung AI endpoint must not hold the request open: fail fast, retry once at most
 const AI_TIMEOUT_MS = 15_000;
 const AI_MAX_RETRIES = 1;
@@ -71,11 +74,11 @@ function takeDailyCall() {
 }
 
 /**
- * Builds a concise prompt to get pros/cons JSON for a listing
- * @param {{ listing: object, smartScore: number }} input
+ * Builds a concise prompt to get pros/cons JSON for a listing, in the given language
+ * @param {{ listing: object, smartScore: number, lang?: string }} input
  * @returns {string}
  */
-function buildProConsPrompt({ listing, smartScore }) {
+function buildProConsPrompt({ listing, smartScore, lang = DEFAULT_LANG }) {
   const playload = {
     smartScore: smartScore,
     id: listing.id,
@@ -117,7 +120,8 @@ function buildProConsPrompt({ listing, smartScore }) {
     "Rules:",
     "- Base the analysis ONLY on the data provided. Do not invent amenities.",
     "- Use the neighbourhood median/average to judge the price.",
-    "- Write in English, in a concise and clear style.",
+    // Same wording as before languages existed, so English analyses already cached keep their key
+    `- Write in ${LANGUAGES[lang] ?? LANGUAGES[DEFAULT_LANG]}, in a concise and clear style.`,
     "",
     "DATA:",
     JSON.stringify(playload, null, 2),
@@ -179,16 +183,20 @@ function cleanPoints(points) {
 }
 
 /**
- * Cache key parts for an analysis: the model name and a hash of the exact
- * prompt, so any change in the listing data (new scrape, new price, new
- * score) gives a new version. Returns null when no AI is configured.
- * @param {{ listing: object, smartScore: number }} input
- * @returns {{ model: string, dataVersion: string }|null}
+ * Cache key parts for an analysis: the model name, the language and a hash of
+ * the exact prompt, so any change in the listing data (new scrape, new price,
+ * new score) gives a new version. Returns null when no AI is configured.
+ * @param {{ listing: object, smartScore: number, lang?: string }} input
+ * @returns {{ model: string, dataVersion: string, lang: string }|null}
  */
 function analysisCacheKey(input) {
   if (!getClient()) return null;
   const hash = crypto.createHash("sha256").update(buildProConsPrompt(input)).digest("hex");
-  return { model: getModel() || "default", dataVersion: `sha256:${hash.slice(0, 32)}` };
+  return {
+    model: getModel() || "default",
+    dataVersion: `sha256:${hash.slice(0, 32)}`,
+    lang: input.lang ?? DEFAULT_LANG,
+  };
 }
 
 /**
@@ -251,6 +259,8 @@ async function chatProsCons(input) {
   }
 }
 
+exports.SUPPORTED_LANGS = Object.keys(LANGUAGES);
+exports.DEFAULT_LANG = DEFAULT_LANG;
 exports.chatProsCons = chatProsCons;
 exports.analysisCacheKey = analysisCacheKey;
 exports.isNonEmptyAnalysis = isNonEmptyAnalysis;

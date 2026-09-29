@@ -1,22 +1,40 @@
 <template>
-  <a href="#evaluate" class="skip-link">Skip to the listing check</a>
+  <a href="#evaluate" class="skip-link">{{ t("nav.skip") }}</a>
 
   <header class="nav">
     <div class="wrap nav-row">
-      <a href="#evaluate" class="brand" aria-label="SmartBnB home">
+      <a href="#evaluate" class="brand" :aria-label="t('nav.home')">
+        <!-- A roof over the prices of similar stays; the green bar is this listing, a good deal -->
         <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M3 22c4-6 8-9 13-9s9 3 13 9" />
-          <path d="M8 22c3-3.5 5-5 8-5s5 1.5 8 5" />
-          <circle cx="16" cy="9" r="2.5" />
+          <path class="roof" d="M3.4 15.4 16 4.2l12.6 11.2" />
+          <rect x="5.9" y="19.5" width="4" height="9.3" rx="1.1" />
+          <rect x="11.3" y="14.8" width="4" height="14" rx="1.1" />
+          <rect x="16.7" y="17.4" width="4" height="11.4" rx="1.1" />
+          <rect class="pick" x="22.1" y="22.6" width="4" height="6.2" rx="1.1" />
         </svg>
         SmartBnB
       </a>
-      <nav aria-label="Sections">
-        <a href="#evaluate">Check a listing</a>
-        <a href="#price-map">Price map</a>
-        <a href="#top-10">Top 10</a>
-        <a href="#trends">Price trends</a>
-      </nav>
+      <div class="nav-end">
+        <nav :aria-label="t('nav.sections')">
+          <a href="#evaluate">{{ t("nav.evaluate") }}</a>
+          <a href="#price-map">{{ t("nav.map") }}</a>
+          <a href="#top-10">{{ t("nav.top10") }}</a>
+          <a href="#trends">{{ t("nav.trends") }}</a>
+        </nav>
+        <div class="lang-switch" role="group" :aria-label="t('nav.language')">
+          <button
+            v-for="lang in SUPPORTED"
+            :key="lang"
+            type="button"
+            :lang="lang"
+            :aria-label="MESSAGES[lang].locale.name"
+            :aria-pressed="locale === lang"
+            @click="setLocale(lang)"
+          >
+            {{ MESSAGES[lang].locale.short }}
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -32,17 +50,18 @@
     <div class="wrap foot-row">
       <p class="foot-brand">SmartBnB</p>
       <p class="foot-text">
-        Built by Adam Gruber, Axel Pittet and Edison Sahitaj.
-        Listing data from <a href="https://insideairbnb.com" target="_blank" rel="noopener">InsideAirbnb</a>
-        (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, cleaned and aggregated),
-        maps from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
+        {{ t("footer.credits") }}
+        {{ t("footer.dataFrom") }} <a href="https://insideairbnb.com" target="_blank" rel="noopener">InsideAirbnb</a>
+        (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, {{ t("footer.cleaned") }}),
+        {{ t("footer.mapsFrom") }} <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.
       </p>
-      <a class="foot-gh" href="https://github.com/AdamoElProfesor/SmartBnB" target="_blank" rel="noopener">Source on GitHub</a>
+      <a class="foot-gh" href="https://github.com/AdamoElProfesor/SmartBnB" target="_blank" rel="noopener">{{ t("footer.source") }}</a>
     </div>
   </footer>
 </template>
 
 <script setup>
+import { MESSAGES, SUPPORTED, locale, setLocale, t } from "./i18n";
 import Evaluator from "./components/Evaluator.vue";
 import HeatmapSection from "./components/HeatmapSection.vue";
 import Top10WithMap from "./components/Top10WithMap.vue";
@@ -144,11 +163,28 @@ button { font-family: inherit; }
 }
 .nav-row { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; text-decoration: none; }
-.brand svg { width: 28px; height: 28px; fill: none; stroke: var(--lake); stroke-width: 2.2; stroke-linecap: round; }
-.brand svg circle { fill: var(--bad); stroke: none; }
+.brand svg { width: 28px; height: 28px; flex: none; fill: var(--lake); }
+.brand svg .roof { fill: none; stroke: var(--lake); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.brand svg .pick { fill: var(--good); }
+.nav-end { display: flex; align-items: center; gap: 12px; }
 .nav nav { display: flex; gap: 4px; }
 .nav nav a { text-decoration: none; padding: 8px 12px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
 .nav nav a:hover { color: var(--ink); background: var(--paper-2); }
+
+.lang-switch { display: flex; padding: 3px; gap: 2px; background: var(--paper-2); border-radius: 9px; }
+.lang-switch button {
+  border: 0;
+  background: transparent;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.lang-switch button:hover { color: var(--ink); }
+.lang-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(28, 43, 42, 0.18); }
 
 .site-footer { border-top: 1px solid var(--line); padding: 40px 0 56px; }
 .foot-row { display: grid; grid-template-columns: auto 1fr auto; gap: 32px; align-items: baseline; }
@@ -159,5 +195,9 @@ button { font-family: inherit; }
 @media (max-width: 760px) {
   .nav nav a:not(:first-child) { display: none; }
   .foot-row { grid-template-columns: 1fr; gap: 8px; }
+}
+/* Phones: the brand already leads to the check, keep room for the language switch */
+@media (max-width: 520px) {
+  .nav nav { display: none; }
 }
 </style>

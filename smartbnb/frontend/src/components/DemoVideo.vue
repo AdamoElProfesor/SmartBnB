@@ -1,29 +1,34 @@
 <template>
   <button type="button" class="demo-btn" @click="open">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5z" /></svg>
-    <span>Watch the 3-minute demo</span>
+    <span>{{ t("demo.watch") }}</span>
   </button>
 
   <!-- Native dialog: focus trap, Escape to close and backdrop come for free -->
-  <dialog ref="dialog" class="demo" aria-label="SmartBnB demo video" @click="closeOnBackdrop" @close="playing = false">
+  <dialog ref="dialog" class="demo" :aria-label="t('demo.dialog')" @click="closeOnBackdrop" @close="playing = false">
     <div class="demo-frame">
-      <!-- The iframe only exists while the dialog is open, so YouTube loads on click and stops on close -->
-      <iframe
+      <!-- The video only exists while the dialog is open, so it loads on click and stops on close -->
+      <video
         v-if="playing"
-        :src="EMBED_URL"
-        title="SmartBnB demo video"
-        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-        allowfullscreen
-      ></iframe>
+        :src="VIDEO_URL"
+        :poster="POSTER_URL"
+        controls
+        autoplay
+        playsinline
+        preload="auto"
+      ></video>
     </div>
-    <button type="button" class="demo-close" aria-label="Close video" @click="dialog.close()">×</button>
+    <button type="button" class="demo-close" :aria-label="t('demo.close')" @click="dialog.close()">×</button>
   </dialog>
 </template>
 
 <script setup>
 import { ref } from "vue";
+import { t } from "../i18n";
 
-const EMBED_URL = "https://www.youtube-nocookie.com/embed/yPMMxEeDstM?autoplay=1&rel=0";
+// Served by the app itself (frontend/public/media), subtitles are burned in
+const VIDEO_URL = "/media/smartbnb-demo.mp4";
+const POSTER_URL = "/media/smartbnb-demo-poster.jpg";
 
 const dialog = ref(null);
 const playing = ref(false);
@@ -68,7 +73,7 @@ function closeOnBackdrop(e) {
 }
 .demo::backdrop { background: rgba(28, 43, 42, 0.78); }
 .demo-frame { aspect-ratio: 16 / 9; }
-.demo-frame iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 14px; }
+.demo-frame video { display: block; width: 100%; height: 100%; border-radius: 14px; background: #000; }
 .demo-close {
   position: absolute;
   top: -48px;

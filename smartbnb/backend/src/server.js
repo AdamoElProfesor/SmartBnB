@@ -8,8 +8,8 @@ const { warnIfRelaySecretMissing } = require("./middleware/rate-limit");
 
 /**
  * Security headers. The CSP lists every third party the frontend uses:
- * Cloudflare Web Analytics, OpenStreetMap tiles (Leaflet) and the
- * youtube-nocookie demo. The font is self-hosted.
+ * Cloudflare Web Analytics and OpenStreetMap tiles (Leaflet). The font and
+ * the demo video are self-hosted, and no page is framed.
  * Leaflet writes style attributes in marker HTML, hence 'unsafe-inline' for
  * styles only; scripts stay 'self'.
  * @returns {import('express').RequestHandler}
@@ -25,7 +25,7 @@ function securityHeaders() {
         "font-src": ["'self'", "data:"],
         "img-src": ["'self'", "data:", "https://tile.openstreetmap.org"],
         "connect-src": ["'self'", "https://cloudflareinsights.com"],
-        "frame-src": ["https://www.youtube-nocookie.com"],
+        "frame-src": ["'none'"],
         "media-src": ["'self'"],
         "object-src": ["'none'"],
         "base-uri": ["'self'"],
@@ -34,7 +34,7 @@ function securityHeaders() {
         ...(process.env.NODE_ENV === "production" ? { "upgrade-insecure-requests": [] } : {}),
       },
     },
-    // YouTube embeds and the OpenStreetMap tile policy both need a Referer
+    // The OpenStreetMap tile policy needs a Referer
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     strictTransportSecurity: { maxAge: 31536000, includeSubDomains: true },
   });
