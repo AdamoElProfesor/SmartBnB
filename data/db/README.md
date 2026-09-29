@@ -38,7 +38,7 @@ price_observations ───────────────────┐ 
 | `airbnb_amenities` | Which listing has which amenity category |
 | `airbnb_points` | Amenities score per listing (sum of weights) |
 | `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type |
-| `neighbourhood_stats` | Average review score and reviews per month per neighbourhood |
+| `neighbourhood_stats` | Review baselines per neighbourhood: overall rating, reviews per month, sample sizes (see [Metrics](#metrics)) |
 | `current_prices` | Latest plausible price per listing (last 6 months) |
 | `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
 | `etl_runs` | One row per run of `pipeline.py`: metrics and quality check results |
@@ -121,6 +121,28 @@ snapshots or from the monthly price collection in
 [`data/prices`](../prices/README.md), and the neighbourhood medians use one
 price per listing. These rules are the `vars` of
 [`data/transform/dbt_project.yml`](../transform/dbt_project.yml).
+
+## Metrics
+
+What the score compares a listing with, and how each number is built. A
+baseline is always measured the same way as the listing value it is compared
+with, and counts each listing once.
+
+| Metric | Definition | Grain | Window | Empty values |
+| --- | --- | --- | --- | --- |
+| `current_prices.price` | Newest nightly price of the listing, 20 to 5,000 CHF | one row per listing | seen in the 6 months before the newest price | a price outside the range is skipped, the listing keeps its previous one |
+| `current_prices.source` | Which price definition it comes from: `insideairbnb` (price column of the scrape), `scrape_search` (price scraper, a Friday, 2 nights, about 4 weeks ahead), `scrape_listing` (price scraper, next free stay of the minimum length) | per price | | never empty |
+| `neighbourhood_room_type_stats.median_price`, `avg_price` | Median and mean of `current_prices.price` per neighbourhood and room type | one price per listing | prices of the last 3 months | listings without a current price are left out |
+| `neighbourhood_stats.avg_reviews_per_month` | Mean `reviews_per_month` of the neighbourhood's listings | one row per listing: its latest snapshot | scrapes of the last 3 months | a listing with no review counts as 0, as on the listing side of the score (Inside Airbnb leaves the value empty exactly then) |
+| `neighbourhood_stats.avg_rating` | Mean overall rating (`review_scores_rating`, 1 to 5), the metric shown for the listing | one row per listing: its latest snapshot | scrapes of the last 3 months | listings without a rating (no review) are left out |
+| `neighbourhood_stats.n_listings`, `n_rated_listings` | Number of listings behind `avg_reviews_per_month` and behind `avg_rating` | | | |
+
+The windows are the `vars` of
+[`data/transform/dbt_project.yml`](../transform/dbt_project.yml) and the
+definitions are tested by the dbt unit tests (a listing counts once in the
+window, a listing without review counts as 0). In September 2026 half of the
+neighbourhoods rested on fewer than 5 listings: `n_listings` says how far to
+trust a baseline.
 
 ## Data quality
 
@@ -224,3 +246,9 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | --- | --- |
 | `2026-09-29-ai-analyses-lang.sql` | `ai_analyses.lang` in the primary key: one cached analysis per language |
 | `2026-09-30-build-schema.sql` | `build` schema for the pipeline (the loader may create tables there), legacy `raw_airbnb_vaud` dropped |
+| `2026-09-30-baseline-columns.sql` | Expand step of #49: `neighbourhood_stats.avg_rating`, `n_listings`, `n_rated_listings` and `current_prices.source` |
+
+A column that changes name goes through **expand / contract**, so the site
+keeps working at every step: the expand migration adds the new column, the
+pipeline fills both and the backend switches to the new one; once that is
+deployed, a contract migration drops the old column.
