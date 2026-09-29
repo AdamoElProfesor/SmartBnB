@@ -36,14 +36,16 @@ cached (`Cache-Control: no-store`).
 
 ### **`GET /api/listings`**
 
-Returns a filterable list of Airbnb listings still active in the latest scrape.
+Returns a filterable list of the Airbnb listings still active (in one of the
+last 2 scrapes, `listing_activity` table), with the data of each one's latest
+snapshot.
 
 - `price_asc` leaves out long stays (`minimum_nights` of 28 or more): a monthly
   rent spread per night is not comparable with a holiday price.
 - `rating_desc` ranks by a Bayesian average, so a perfect rating from a few
   guests does not beat a near perfect one from hundreds:
   `(n × rating + m × C) / (n + m)`, where `n` is the listing's number of
-  reviews, `C` the mean rating of the listings in the latest scrape and
+  reviews, `C` the mean rating of the active listings and
   `m = 40` (`RATING_PRIOR_REVIEWS`). Each rating counts as if it had 40 extra
   reviews at the mean, which matters for a listing with 5 reviews and barely
   for one with 400. `rating` in the response stays the raw average.
@@ -122,6 +124,8 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
 {
   "ok": true,
   "listing_id": "string",
+  "active": true,
+  "last_seen": "YYYY-MM-DD",
   "smart_score": 0,
   "listing": {
     "id": "string",
@@ -156,7 +160,12 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   `analysis` is empty (`pros: [], cons: [], summary: ""`) when no AI key is
   set, the AI call fails (the listing is then not retried for 5 minutes), or
   the daily AI budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default).
-  It holds at most 4 pros and 4 cons, written in `lang`. `analysis_cached` is `true` when it comes from the
+  `active` is `false` when the listing is no longer on Airbnb (missing from
+  the last 2 scrapes); `last_seen` is the day of its latest scrape. Such a
+  listing is not scored: `smart_score` and `analysis` are `null`, and no AI
+  call is made. The listing's data is still returned.
+
+  `analysis` holds at most 4 pros and 4 cons, written in `lang`. `analysis_cached` is `true` when it comes from the
   `ai_analyses` cache instead of a new AI call. Each language is cached
   separately. Fields without data are `null`.
 
@@ -174,7 +183,7 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
 
 ### **`GET /api/heatmap`**
 
-Returns the price map points: one point per listing of the latest scrape that
+Returns the price map points: one point per active listing (same rule as `/api/listings`) that
 has coordinates and a current price. The response is cached in memory for 10
 minutes (`READ_CACHE_TTL_MS`), since it only changes when a snapshot is loaded.
 

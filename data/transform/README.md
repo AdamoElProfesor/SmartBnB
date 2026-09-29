@@ -15,9 +15,9 @@ reach the site only once every test and the audit have passed.
 sources          raw.airbnb_vaud, raw.airbnb_snapshots, raw.airbnb_amenities   (build schema, from load_data.py)
                  app.price_observations, app.amenity_points                     (public schema, read only)
 staging          stg_listings, stg_snapshots, stg_amenities, stg_price_observations      views
-intermediate     int_listing_prices, int_listing_latest_snapshots                         views
-marts            current_prices, airbnb_points, neighbourhood_room_type_stats,            tables
-                 neighbourhood_stats, price_trends
+intermediate     int_active_listings, int_listing_prices, int_listing_latest_snapshots    views
+marts            listing_activity, current_prices, airbnb_points,                         tables
+                 neighbourhood_room_type_stats, neighbourhood_stats, price_trends
 ```
 
 - **Staging**: one model per source, renamed and cleaned. `stg_snapshots`
@@ -31,7 +31,9 @@ marts            current_prices, airbnb_points, neighbourhood_room_type_stats,  
   keeps each listing's latest snapshot of the stats window, so a listing
   counts once in the neighbourhood baselines.
 - **Marts**: the tables the backend reads, with the names and columns of the
-  public tables, so the API did not change.
+  public tables. `listing_activity` gives each listing its lifetime and the
+  one definition of "still on Airbnb" (in one of the last 2 scrapes), which
+  `int_active_listings` applies to the prices and the neighbourhood baselines.
 
 The business rules (price range, time windows) are the `vars` of
 [`dbt_project.yml`](dbt_project.yml); `data/db/quality.py` reads the price
@@ -51,8 +53,9 @@ skips the models downstream of a failure.
 - A singular test (`tests/price_trends_cover_a_period.sql`).
 - Unit tests of the business rules, on fixed input rows (in the model YAML
   files): broken scrape prices are dropped, the current price is the newest
-  one in the window, a listing counts once in the stats window, and a
-  listing without review counts as 0 in the reviews baseline.
+  one in the window, a listing counts once in the stats window, a listing
+  without review counts as 0 in the reviews baseline, and a listing stays
+  active through one partial scrape but not two missed ones.
 
 Staging casts prices and scores to `double precision`: the production table
 stores some of them as `real`, and the unit tests caught that the results
