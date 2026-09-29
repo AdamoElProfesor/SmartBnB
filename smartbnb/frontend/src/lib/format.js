@@ -19,9 +19,12 @@ export function formatCHF(value) {
 export const formatNumber = (value, digits) =>
   numberFormat(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
 
-/** "14 September 2026" / "14 septembre 2026" */
+/**
+ * A calendar day ("2026-09-14") as "14 September 2026" / "14 septembre 2026",
+ * the same day in every time zone (it is read and written as UTC)
+ */
 export const formatDate = (d) =>
-  new Date(d).toLocaleDateString(intlLocale(), { day: "numeric", month: "long", year: "numeric" });
+  new Date(d).toLocaleDateString(intlLocale(), { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
 export const isNum = (v) => v !== null && v !== "" && Number.isFinite(Number(v));
 
