@@ -60,6 +60,12 @@ models:
         data_tests: [not_null]
       - name: price_date
         data_tests: [not_null]
+      - name: method
+        description: Scraper pass that found the price.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["search", "listing"]
 
 unit_tests:
   - name: broken_scrape_prices_are_dropped

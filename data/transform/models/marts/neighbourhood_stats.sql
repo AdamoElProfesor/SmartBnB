@@ -1,26 +1,32 @@
--- Per neighbourhood, over the scrapes of the last stats_window_months: mean
--- of each snapshot's average review score, and mean reviews_per_month (the
--- baseline of the score's reviews part)
-with snapshots as (
-    select * from {{ ref('stg_snapshots') }}
+-- Review baselines per neighbourhood, one row per listing (its latest
+-- snapshot of the stats window), with the same metrics as the listing side
+-- of the score:
+--   avg_rating             the overall rating (review_scores_rating), over
+--                          the listings that have one
+--   avg_reviews_per_month  reviews_per_month, where a listing with no review
+--                          counts as 0, as it does on the listing side
+with listings as (
+    select
+        s.*,
+        l.neighbourhood,
+        -- Inside Airbnb leaves reviews_per_month empty exactly when a listing
+        -- has no review; any other empty value stays unknown
+        case when s.number_of_reviews = 0 then 0 else s.reviews_per_month end as reviews_per_month_filled
+    from {{ ref('int_listing_latest_snapshots') }} as s
+    join {{ ref('stg_listings') }} as l on l.listing_id = s.listing_id
+    where l.neighbourhood is not null
 )
 
+-- Means are summed as numeric: a floating point sum depends on the order of
+-- the rows, which can change between runs, and a run must be reproducible
 select
-    l.neighbourhood,
-    avg(r.row_avg) as avg_reviews,
-    avg(s.reviews_per_month) as avg_reviews_per_month
-from snapshots as s
-join {{ ref('stg_listings') }} as l on l.listing_id = s.listing_id
-cross join lateral (
-    select avg(x) as row_avg
-    from unnest(array[
-        s.review_scores_rating, s.review_scores_accuracy,
-        s.review_scores_cleanliness, s.review_scores_checkin,
-        s.review_scores_communication, s.review_scores_location,
-        s.review_scores_value
-    ]) as x
-) as r
-where s.last_scraped >= (select max(last_scraped) from snapshots)
-                        - make_interval(months => {{ var('stats_window_months') }})
-  and l.neighbourhood is not null
-group by 1
+    neighbourhood,
+    avg(review_scores_rating::numeric)::double precision as avg_rating,
+    -- Former name of avg_rating, kept until the backend reads avg_rating
+    -- everywhere (expand / contract), then dropped
+    avg(review_scores_rating::numeric)::double precision as avg_reviews,
+    avg(reviews_per_month_filled::numeric)::double precision as avg_reviews_per_month,
+    count(*) as n_listings,
+    count(review_scores_rating) as n_rated_listings
+from listings
+group by neighbourhood

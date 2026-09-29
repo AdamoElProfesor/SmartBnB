@@ -4,7 +4,8 @@ models:
   - name: int_listing_prices
     description: >
       Every plausible nightly price of each listing (min_nightly_price to
-      max_nightly_price CHF), from both sources, with the day it was seen.
+      max_nightly_price CHF), from the three price definitions, with the day
+      it was seen.
     columns:
       - name: listing_id
         data_tests: [not_null]
@@ -14,8 +15,43 @@ models:
       - name: price_date
         data_tests: [not_null]
       - name: source
-        description: Where the price comes from.
+        description: >
+          Where the price comes from: insideairbnb (the price column of the
+          scrape), scrape_search (price scraper, search results for a
+          Friday, 2 nights, about 4 weeks ahead) or scrape_listing (price
+          scraper, next free stay of the minimum length).
         data_tests:
           - accepted_values:
               arguments:
-                values: ["inside_airbnb", "price_collection"]
+                values: ["insideairbnb", "scrape_search", "scrape_listing"]
+
+  - name: int_listing_latest_snapshots
+    description: >
+      Each listing's latest snapshot among the scrapes of the last
+      stats_window_months: the grain of the neighbourhood baselines, so a
+      listing counts once however many scrapes it appears in.
+    columns:
+      - name: listing_id
+        data_tests: [unique, not_null]
+
+unit_tests:
+  - name: a_listing_counts_once_in_the_stats_window
+    description: >
+      A listing in several scrapes of the window is kept once, with its
+      latest snapshot; a listing only seen before the window is left out.
+    model: int_listing_latest_snapshots
+    overrides:
+      vars:
+        stats_window_months: 3
+    given:
+      - input: ref('stg_snapshots')
+        rows:
+          - {listing_id: 1, scrape_id: 1, last_scraped: "2026-07-10", reviews_per_month: 1.0}
+          - {listing_id: 1, scrape_id: 2, last_scraped: "2026-08-10", reviews_per_month: 1.5}
+          - {listing_id: 1, scrape_id: 3, last_scraped: "2026-09-10", reviews_per_month: 2.0}
+          - {listing_id: 2, scrape_id: 0, last_scraped: "2026-01-10", reviews_per_month: 9.0}
+          - {listing_id: 3, scrape_id: 2, last_scraped: "2026-08-10", reviews_per_month: 0.5}
+    expect:
+      rows:
+        - {listing_id: 1, scrape_id: 3, reviews_per_month: 2.0}
+        - {listing_id: 3, scrape_id: 2, reviews_per_month: 0.5}

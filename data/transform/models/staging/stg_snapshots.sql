@@ -1,7 +1,10 @@
 -- One row per listing per scrape, with the price validity rule applied:
 -- a scrape whose median price is below min_plausible_price shipped a broken
 -- price column, so none of its prices is used, and any single price below
--- it is a parsing error.
+-- it is a parsing error. Prices and scores are cast to double precision:
+-- the production table stores some of them as real, and every model
+-- downstream must compute the same way whatever the raw column type (the
+-- cast is exact, no value changes).
 with snapshots as (
     select * from {{ source('raw', 'airbnb_snapshots') }}
 ),
@@ -21,18 +24,18 @@ select
     case
         when m.median_price < {{ var('min_plausible_price') }} then null
         when s.price < {{ var('min_plausible_price') }} then null
-        else s.price
+        else s.price::double precision
     end as price,
     s.minimum_nights,
     s.number_of_reviews,
     s.number_of_reviews_ltm,
-    s.review_scores_rating,
-    s.review_scores_accuracy,
-    s.review_scores_cleanliness,
-    s.review_scores_checkin,
-    s.review_scores_communication,
-    s.review_scores_location,
-    s.review_scores_value,
-    s.reviews_per_month
+    s.review_scores_rating::double precision as review_scores_rating,
+    s.review_scores_accuracy::double precision as review_scores_accuracy,
+    s.review_scores_cleanliness::double precision as review_scores_cleanliness,
+    s.review_scores_checkin::double precision as review_scores_checkin,
+    s.review_scores_communication::double precision as review_scores_communication,
+    s.review_scores_location::double precision as review_scores_location,
+    s.review_scores_value::double precision as review_scores_value,
+    s.reviews_per_month::double precision as reviews_per_month
 from snapshots as s
 join scrape_medians as m on m.scrape_id = s.scrape_id
