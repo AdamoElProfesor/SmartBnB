@@ -123,11 +123,13 @@ exports.getById = async (
       v.neighbourhood_group_cleansed AS neighborhood_group,
       v.room_type,
       v.accommodates,
-      act.first_seen,
-      act.last_seen,
+      -- Calendar days as YYYY-MM-DD text: a date sent as a timestamp at
+      -- midnight UTC would show the previous day west of Greenwich
+      act.first_seen::text           AS first_seen,
+      act.last_seen::text            AS last_seen,
       act.is_active,
       cp.price,
-      cp.price_date,
+      cp.price_date::text            AS price_date,
       s.number_of_reviews_ltm,
       s.reviews_per_month, 
       s.review_scores_rating,

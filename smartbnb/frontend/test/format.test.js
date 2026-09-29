@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { amenityLabel, formatCHF, isNum, priceColor, roomTypeLabel } from "../src/lib/format";
+import { describe, expect, test, vi } from "vitest";
+import { amenityLabel, formatCHF, formatDate, isNum, priceColor, roomTypeLabel } from "../src/lib/format";
 
 describe("formatCHF", () => {
   test("formats a price without decimals", () => {
@@ -10,6 +10,17 @@ describe("formatCHF", () => {
     expect(formatCHF(null)).toBeNull();
     expect(formatCHF(undefined)).toBeNull();
     expect(formatCHF("abc")).toBeNull();
+  });
+});
+
+describe("formatDate", () => {
+  test("shows the calendar day whatever the visitor's time zone", () => {
+    for (const zone of ["America/Los_Angeles", "Europe/Zurich", "Pacific/Auckland"]) {
+      vi.stubEnv("TZ", zone);
+      expect(formatDate("2024-07-14")).toBe("14 July 2024");
+      expect(formatDate("2024-07-14T00:00:00.000Z")).toBe("14 July 2024");
+    }
+    vi.unstubAllEnvs();
   });
 });
 
