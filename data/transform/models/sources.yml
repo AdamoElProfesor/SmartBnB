@@ -1,0 +1,39 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Inside Airbnb data as data/db/load_data.py loads it: typed, but otherwise
+      as received. The pipeline builds a candidate copy of these tables in the
+      build schema (the published ones plus the new scrapes), transforms and
+      tests it there, and only then copies everything into public.
+    schema: "{{ target.schema }}"
+    tables:
+      - name: airbnb_vaud
+        description: One row per listing ever seen, with its static data from its latest scrape.
+        columns:
+          - name: id
+            description: Airbnb listing id.
+            data_tests: [unique, not_null]
+      - name: airbnb_snapshots
+        description: >
+          One row per listing per Inside Airbnb scrape (about one scrape a
+          month): the time series of price, reviews and ratings. Prices are
+          the raw scraped values; stg_snapshots applies the validity rules.
+        data_tests:
+          - unique_columns:
+              arguments:
+                columns: [listing_id, scrape_id]
+      - name: airbnb_amenities
+        description: Which listing has which of the 10 amenity categories, from its latest scrape.
+
+  - name: app
+    description: Tables of the public schema that the pipeline reads but never rebuilds.
+    schema: public
+    tables:
+      - name: price_observations
+        description: >
+          Nightly prices collected from Airbnb by the price scraper (private
+          SmartBnB-data repository), one row per listing and collection run.
+      - name: amenity_points
+        description: Weight of each amenity category in the amenities score (data/db/seed.sql).

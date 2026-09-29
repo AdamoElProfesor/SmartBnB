@@ -1,0 +1,140 @@
+version: 2
+
+# The tables the site reads. They keep the names and columns of the public
+# tables (data/db/schema.sql), into which data/db/publish.py copies them.
+models:
+  - name: current_prices
+    description: >
+      Latest plausible nightly price of each listing, from the Inside Airbnb
+      scrapes or the price scraper, whichever saw it last, if seen in the
+      price_window_months before the newest price. The price map, the price
+      ranking and the score's price part use it.
+    columns:
+      - name: listing_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+      - name: price
+        description: Nightly price in CHF.
+        data_tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: "{{ var('min_nightly_price') }}"
+                max_value: "{{ var('max_nightly_price') }}"
+      - name: price_date
+        description: Day the price was seen.
+        data_tests: [not_null]
+
+  - name: airbnb_points
+    description: Amenities score of each listing, the sum of the weights of its amenity categories.
+    columns:
+      - name: airbnb_id
+        description: Airbnb listing id.
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+      - name: total_points
+        description: Sum of the weights (data/db/seed.sql) of the listing's amenity categories.
+        data_tests: [not_null]
+
+  - name: neighbourhood_room_type_stats
+    description: >
+      Average and median current price per neighbourhood and room type, over
+      the prices seen in the last stats_window_months. The score compares a
+      listing's price with the median of its group.
+    data_tests:
+      - unique_columns:
+          arguments:
+            columns: [neighbourhood, room_type]
+    columns:
+      - name: neighbourhood
+        data_tests: [not_null]
+      - name: room_type
+        data_tests: [not_null]
+      - name: avg_price
+        description: Mean nightly price in CHF.
+      - name: median_price
+        description: Median nightly price in CHF.
+        data_tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: "{{ var('min_nightly_price') }}"
+                max_value: "{{ var('max_nightly_price') }}"
+      - name: count_airbnb
+        description: Number of listings behind the average and the median.
+        data_tests:
+          - not_null
+          - in_range:
+              arguments: {min_value: 1, max_value: 100000}
+
+  - name: neighbourhood_stats
+    description: >
+      Review baselines per neighbourhood over the scrapes of the last
+      stats_window_months: the score compares a listing's reviews with them.
+    columns:
+      - name: neighbourhood
+        data_tests: [unique, not_null]
+      - name: avg_reviews
+        description: Mean over snapshots of the average of the 7 review scores (0 to 5).
+        data_tests:
+          - in_range:
+              arguments: {min_value: 0, max_value: 5}
+      - name: avg_reviews_per_month
+        description: Mean reviews_per_month of the neighbourhood's snapshots.
+
+  - name: price_trends
+    description: >
+      "Prices this year" on the site: per district, the median price of the
+      first priced scrape of the last trend_window_months against the latest
+      priced scrape. Empty when a single scrape has prices.
+    columns:
+      - name: region
+        description: District (Inside Airbnb neighbourhood_group_cleansed), or Unknown.
+        data_tests: [unique, not_null]
+      - name: start_date
+        data_tests: [not_null]
+      - name: end_date
+        data_tests: [not_null]
+      - name: start_median
+        description: Median nightly price in CHF of the first scrape.
+        data_tests: [not_null]
+      - name: end_median
+        description: Median nightly price in CHF of the latest scrape.
+        data_tests: [not_null]
+      - name: pct
+        description: Change in percent, null when start_median is 0.
+
+unit_tests:
+  - name: current_price_is_the_latest_in_the_window
+    description: >
+      A listing gets its newest price; a price older than price_window_months
+      before the newest price overall is too old; a listing we do not know
+      gets none.
+    model: current_prices
+    given:
+      - input: ref('int_listing_prices')
+        rows:
+          - {listing_id: 1, price: 100, price_date: "2026-01-01"}
+          - {listing_id: 1, price: 150, price_date: "2026-09-01"}
+          - {listing_id: 2, price: 90, price_date: "2026-01-15"}
+          - {listing_id: 3, price: 80, price_date: "2026-08-01"}
+          - {listing_id: 4, price: 70, price_date: "2026-09-01"}
+      - input: ref('stg_listings')
+        rows:
+          - {listing_id: 1}
+          - {listing_id: 2}
+          - {listing_id: 3}
+    expect:
+      rows:
+        - {listing_id: 1, price: 150, price_date: "2026-09-01"}
+        - {listing_id: 3, price: 80, price_date: "2026-08-01"}

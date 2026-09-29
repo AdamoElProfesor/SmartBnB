@@ -1,0 +1,39 @@
+name: smartbnb
+version: "1.0.0"
+config-version: 2
+profile: smartbnb
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: target
+clean-targets: ["target", "logs"]
+
+# The business rules of the pipeline, in one place. data/db/quality.py reads
+# the nightly price range from here too, for its audit.
+vars:
+  # CHF. A scraped price below this is a parsing error, and a scrape whose
+  # median is below it shipped a broken price column (mid-2026 Inside Airbnb
+  # files had every price below 1 CHF): stg_snapshots drops those prices.
+  min_plausible_price: 5
+  # CHF. Nightly prices outside this range are not used for the current
+  # price: below 20 it is e.g. a monthly rent spread over the minimum stay.
+  min_nightly_price: 20
+  max_nightly_price: 5000
+  # A listing's current price must be seen in the months before the newest price
+  price_window_months: 6
+  # Neighbourhood baselines use the scrapes and prices of these last months
+  # (data/db/pipeline.py --stats-months overrides it)
+  stats_window_months: 3
+  # "Prices this year": first priced scrape of this window against the latest
+  trend_window_months: 12
+
+models:
+  smartbnb:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    # Built as tables in the build schema, then copied into public by
+    # data/db/publish.py once every test and the audit pass
+    marts:
+      +materialized: table

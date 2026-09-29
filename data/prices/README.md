@@ -29,7 +29,7 @@ Airbnb search + listing pages
         ▼
 price_observations               raw layer: one row per listing and run,
         │                        with the full price breakdown
-        │  load_data.py          (transform + load)
+        │  dbt models            (transform, data/transform)
         ▼
 current_prices                   newest price per listing (snapshots or
         │                        observations, whichever is newer)

@@ -1,9 +1,10 @@
 name: Data refresh
 
-# Weekly run of the data pipeline (data/db/load_data.py, Write-Audit-Publish):
-# download the newest Inside Airbnb snapshot, load it, recompute prices and
-# stats, audit the result (data/db/quality.py) and publish only if no
-# blocking check fails. Each run is logged in the etl_runs table.
+# Weekly run of the data pipeline (data/db/pipeline.py, Write-Audit-Publish):
+# download the newest Inside Airbnb snapshot, load it into the build schema,
+# transform it with dbt (data/transform) and run the dbt tests, then publish
+# it into public and audit it (data/db/quality.py) in one transaction that is
+# committed only if no blocking check fails. Each run is logged in etl_runs.
 #
 # The run fails, and GitHub emails the repository owner, when the load is
 # blocked or crashes, and also when it is published with warnings.
@@ -38,9 +39,10 @@ jobs:
           ssh-key: ${{ secrets.SNAPSHOTS_DEPLOY_KEY }}
           path: data/snapshots
 
-      # smartbnb_loader role (data/db/roles.sql): it can rebuild the listing
-      # and stats tables, not drop them nor touch the collected prices
-      - name: Load, audit and publish
+      # smartbnb_loader role (data/db/roles.sql): it builds in the build
+      # schema and refills the listing and stats tables, it cannot drop them
+      # nor touch the collected prices
+      - name: Load, transform, audit and publish
         id: load
         env:
           DATABASE_URL: ${{ secrets.LOADER_DATABASE_URL }}
@@ -52,13 +54,14 @@ jobs:
           fi
           python3 -m venv /tmp/venv
           /tmp/venv/bin/pip install --quiet -r data/db/requirements.txt
-          /tmp/venv/bin/python data/db/load_data.py --fetch --trigger github-actions 2>&1 | tee load.log
+          /tmp/venv/bin/python data/db/pipeline.py --fetch --trigger github-actions 2>&1 | tee load.log
           code=${PIPESTATUS[0]}
           echo "code=${code}" >> "$GITHUB_OUTPUT"
           {
             echo "### Data refresh"
             echo '```'
-            grep -v 'csv.gz: ' load.log | tail -60
+            # One line per dbt node is too much for the summary: keep dbt's totals
+            grep -v -E 'csv.gz: |[0-9]+ of [0-9]+ (START|PASS|OK) ' load.log | tail -60
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           # 0 published, 2 published with warnings, anything else blocked or failed

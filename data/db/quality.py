@@ -1,23 +1,29 @@
-"""Data quality audit of a load (the "Audit" of Write-Audit-Publish).
+"""Data quality audit of a run (the "Audit" of Write-Audit-Publish).
 
-load_data.py writes the new data inside one transaction, then calls
-audit(): it measures the tables as the site would see them and checks the
-measures against fixed thresholds and against the last published run. An
-error rolls the transaction back, so the site keeps the previous data. A
-warning lets the data through but is reported. Every run, with its metrics
-and check results, is stored in public.etl_runs.
+pipeline.py refills the public tables inside one transaction, then calls
+measure() and evaluate(): they measure the tables as the site would see them
+and check the measures against fixed thresholds and against the last
+published run. An error rolls the transaction back, so the site keeps the
+previous data. A warning lets the data through but is reported. The dbt
+tests (data/transform) run before, on the build schema. Every run, with its
+metrics and check results, is stored in public.etl_runs.
 
 The checks themselves (evaluate) are plain Python on a dict of metrics, so
 they are tested without a database (tests/test_quality.py).
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
-# Nightly prices outside this range are not used (load_data.py filters them
-# out of current_prices). Below 20 CHF it is a parsing error, e.g. a monthly
-# rent spread over the minimum stay, or the broken 2026 Inside Airbnb prices.
-MIN_NIGHTLY_PRICE = 20
-MAX_NIGHTLY_PRICE = 5000
+import yaml
+
+# The business rules live in the dbt project: current_prices only keeps
+# nightly prices in this range, and the audit checks it did
+_RULES = yaml.safe_load(
+    (Path(__file__).resolve().parent.parent / "transform" / "dbt_project.yml").read_text(encoding="utf-8")
+)["vars"]
+MIN_NIGHTLY_PRICE = _RULES["min_nightly_price"]
+MAX_NIGHTLY_PRICE = _RULES["max_nightly_price"]
 
 KNOWN_ROOM_TYPES = ("Entire home/apt", "Private room", "Shared room", "Hotel room")
 
@@ -32,6 +38,7 @@ METRICS_SQL = {
         WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots)""",
     "snapshot_age_days": """
         SELECT CURRENT_DATE - MAX(last_scraped) FROM public.airbnb_snapshots""",
+    "scrapes": "SELECT COUNT(DISTINCT scrape_id) FROM public.airbnb_snapshots",
     "priced_listings": "SELECT COUNT(*) FROM public.current_prices",
     "price_age_days": "SELECT CURRENT_DATE - MAX(price_date) FROM public.current_prices",
     "active_price_coverage": """
@@ -170,6 +177,11 @@ def evaluate(m, previous=None):
 
     # Drift against the last published run
     if previous:
+        # Publishing rewrites the whole history, which must only ever grow
+        if previous.get("scrapes") is not None:
+            scrapes, before = m.get("scrapes") or 0, previous["scrapes"]
+            check("scrapes_kept", "error", scrapes >= before,
+                  f"{scrapes:.0f} scrapes in the history, {before:.0f} before (none may be lost)")
         for name in ("active_listings", "priced_listings"):
             change = _change(m.get(name), previous.get(name))
             check(f"{name}_change", "error", change is None or change >= -0.3,

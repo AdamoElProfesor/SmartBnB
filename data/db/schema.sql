@@ -1,7 +1,7 @@
 -- SmartBnB database schema (PostgreSQL / Supabase)
 --
--- Reconstructed from the queries in smartbnb/backend/src/repositories/sql
--- and data/db/load_data.py. Safe to re-run: it drops and
+-- Reconstructed from the queries in smartbnb/backend/src/repositories/sql,
+-- data/db/load_data.py and the dbt models of data/transform. Safe to re-run: it drops and
 -- recreates every table except price_observations (collected prices) and
 -- etl_runs (the history of the loads).
 
@@ -100,7 +100,8 @@ CREATE INDEX airbnb_points_total_idx
   ON public.airbnb_points (total_points);
 
 -- -----------------------------------------------------------------
--- Pre-computed data, rebuilt by load_data.py
+-- Pre-computed data: the dbt marts of data/transform, published here by
+-- data/db/pipeline.py at each run
 -- -----------------------------------------------------------------
 -- Latest valid price per listing (some scrapes have no usable prices)
 CREATE TABLE public.current_prices (
@@ -181,7 +182,7 @@ CREATE TABLE public.ai_analyses (
 );
 
 -- -----------------------------------------------------------------
--- One row per run of load_data.py (Write-Audit-Publish, see quality.py):
+-- One row per run of pipeline.py (Write-Audit-Publish, see quality.py):
 -- the metrics measured on the loaded data and the result of each quality
 -- check. status: running, success, warning (published with warnings),
 -- blocked (a blocking check failed, rolled back) or failed (crashed).
@@ -204,41 +205,12 @@ CREATE TABLE IF NOT EXISTS public.etl_runs (
 CREATE INDEX IF NOT EXISTS etl_runs_finished_idx ON public.etl_runs (finished_at DESC);
 
 -- -----------------------------------------------------------------
--- Legacy staging table from the removed Airflow DAG (raw InsideAirbnb CSV
--- rows). load_data.py does not use it; kept so existing databases match.
--- Every column is text.
+-- Build schema: where the pipeline prepares the next version of the data
+-- (candidate raw tables from load_data.py, dbt models) before publishing it
+-- into public. Not read by the site, not in the backups, not exposed by the
+-- Supabase API. Its tables belong to whoever runs the pipeline.
 -- -----------------------------------------------------------------
-CREATE TABLE public.raw_airbnb_vaud (
-  id text, listing_url text, scrape_id text, last_scraped text, source text,
-  name text, description text, neighborhood_overview text, picture_url text,
-  host_id text, host_url text, host_name text, host_since text,
-  host_location text, host_about text, host_response_time text,
-  host_response_rate text, host_acceptance_rate text, host_is_superhost text,
-  host_thumbnail_url text, host_picture_url text, host_neighbourhood text,
-  host_listings_count text, host_total_listings_count text,
-  host_verifications text, host_has_profile_pic text,
-  host_identity_verified text, neighbourhood text, neighbourhood_cleansed text,
-  neighbourhood_group_cleansed text, latitude text, longitude text,
-  property_type text, room_type text, accommodates text, bathrooms text,
-  bathrooms_text text, bedrooms text, beds text, amenities text, price text,
-  minimum_nights text, maximum_nights text, minimum_minimum_nights text,
-  maximum_minimum_nights text, minimum_maximum_nights text,
-  maximum_maximum_nights text, minimum_nights_avg_ntm text,
-  maximum_nights_avg_ntm text, calendar_updated text, has_availability text,
-  availability_30 text, availability_60 text, availability_90 text,
-  availability_365 text, calendar_last_scraped text, number_of_reviews text,
-  number_of_reviews_ltm text, number_of_reviews_l30d text,
-  availability_eoy text, number_of_reviews_ly text,
-  estimated_occupancy_l365d text, estimated_revenue_l365d text,
-  first_review text, last_review text, review_scores_rating text,
-  review_scores_accuracy text, review_scores_cleanliness text,
-  review_scores_checkin text, review_scores_communication text,
-  review_scores_location text, review_scores_value text, license text,
-  instant_bookable text, calculated_host_listings_count text,
-  calculated_host_listings_count_entire_homes text,
-  calculated_host_listings_count_private_rooms text,
-  calculated_host_listings_count_shared_rooms text, reviews_per_month text
-);
+CREATE SCHEMA IF NOT EXISTS build;
 
 -- -----------------------------------------------------------------
 -- Security: the backend connects with the Postgres role (bypasses RLS).
@@ -255,7 +227,6 @@ ALTER TABLE public.neighbourhood_room_type_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_stats           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_trends                  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.raw_airbnb_vaud               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.etl_runs                      ENABLE ROW LEVEL SECURITY;
@@ -302,6 +273,7 @@ BEGIN
       public.price_trends
       TO smartbnb_loader;
     GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
+    GRANT USAGE, CREATE ON SCHEMA build TO smartbnb_loader;
     FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
       EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_read ON public.%I', t);
       EXECUTE format(

@@ -6,11 +6,12 @@
 --
 --   smartbnb_app     backend: SELECT on every table, INSERT into ai_analyses
 --   smartbnb_backup  pg_dump: SELECT on every table and sequence
---   smartbnb_loader  load_data.py in GitHub Actions: writes the listing and
---                    stats tables and etl_runs, reads price_observations.
---                    It cannot drop tables or touch the collected prices.
+--   smartbnb_loader  pipeline.py in GitHub Actions: builds in the build schema,
+--                    refills the listing and stats tables, writes etl_runs,
+--                    reads price_observations. It cannot drop or create
+--                    tables in public, nor touch the collected prices.
 --
--- "postgres" stays for schema.sql, load_data.py --init and the price scraper.
+-- "postgres" stays for schema.sql, pipeline.py --init and the price scraper.
 --
 -- A new role must also be created in the restore test of
 -- .github/workflows/backup.yml, since the dumped RLS policies name it.
@@ -63,7 +64,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA public FROM smartbnb_backup;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_backup;
 GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO smartbnb_backup;
 
--- Loader: read everything, write only what load_data.py rebuilds, and its
+-- Loader: read everything, write only what pipeline.py publishes, and its
 -- own run log. No DELETE on price_observations, no DDL.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM smartbnb_loader;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_loader;
@@ -74,6 +75,9 @@ GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
   public.price_trends
   TO smartbnb_loader;
 GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
+-- The pipeline builds the next version of the data in its own schema
+CREATE SCHEMA IF NOT EXISTS build;
+GRANT USAGE, CREATE ON SCHEMA build TO smartbnb_loader;
 
 -- Tables created later by "postgres" get the same read access
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public

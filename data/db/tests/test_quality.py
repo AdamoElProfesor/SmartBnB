@@ -20,6 +20,7 @@ HEALTHY = {
     "small_group_share": 0.12,
     "review_stat_neighbourhoods": 243,
     "amenity_scores": 9431,
+    "scrapes": 27,
 }
 
 
@@ -71,6 +72,18 @@ def test_sudden_drop_against_the_last_run_is_blocked():
     results = quality.evaluate(current, previous=HEALTHY)
     assert "priced_listings_change" in failed(results)
     assert quality.summary(results) == "error"
+
+
+def test_losing_a_scrape_of_the_history_is_blocked():
+    # Publishing rewrites the raw tables: a scrape missing from the build must not go live
+    results = quality.evaluate({**HEALTHY, "scrapes": 26}, previous=HEALTHY)
+    assert failed(results) == {"scrapes_kept"}
+    assert quality.summary(results) == "error"
+
+
+def test_scrapes_check_waits_for_a_run_that_measured_them():
+    previous = {k: v for k, v in HEALTHY.items() if k != "scrapes"}
+    assert "scrapes_kept" not in {r.name for r in quality.evaluate(HEALTHY, previous=previous)}
 
 
 def test_median_price_jump_is_a_warning():

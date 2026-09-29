@@ -67,7 +67,7 @@ English and in the imperative mood:
 |---|---|
 | `smartbnb/frontend` | Vue 3 + Vite app |
 | `smartbnb/backend` | Express API, SmartScore and AI analysis |
-| `data` | Inside Airbnb snapshots and the database loader |
+| `data` | Data pipeline: loader and audit (`data/db`), dbt transformations (`data/transform`) |
 | `cloudflare` | Cloudflare Workers (relay, AI endpoint, keep-alive) |
 | `docs` | Deployment, API, CI and operations guides |
 

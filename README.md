@@ -47,15 +47,15 @@ flowchart LR
   relay --> app[Render: Express API<br/>+ Vue app]
   app --> db[(Supabase Postgres)]
   app --> ai[Cloudflare Worker<br/>Workers AI, gpt-oss-20b]
-  loader[data/db/load_data.py] --> db
-  insideairbnb[Inside Airbnb snapshots] --> loader
+  pipeline[Data pipeline<br/>load, dbt, audit, publish] --> db
+  insideairbnb[Inside Airbnb snapshots] --> pipeline
 ```
 
 | Folder | Content |
 |---|---|
 | [`smartbnb/frontend`](smartbnb/frontend) | Vue 3 + Vite app, Leaflet maps on OpenStreetMap |
 | [`smartbnb/backend`](smartbnb/backend) | Node.js + Express API, also serves the built app |
-| [`data`](data) | Loader that fills the database from the Inside Airbnb snapshots, price collection |
+| [`data`](data) | Data pipeline: loader ([`data/db`](data/db)), dbt transformations and tests ([`data/transform`](data/transform)), price collection |
 | [`cloudflare`](cloudflare) | Workers: domain relay, AI endpoint, keep-alive |
 | [`docs`](docs) | Guides for running, deploying and operating the app, plus the logo files ([`docs/brand`](docs/brand)) |
 
@@ -85,7 +85,7 @@ not to republish the data, so this repository holds none of it: every
 monthly snapshot since July 2024 is archived in a private repository, so the
 database can be rebuilt without depending on Inside Airbnb keeping its
 archives online. New snapshots are downloaded with
-`python data/db/load_data.py --fetch`. Only the columns SmartBnB uses are
+`python data/db/pipeline.py --fetch`. Only the columns SmartBnB uses are
 kept: no host names, host profiles or texts written by hosts.
 
 From June to September 2026 the Inside Airbnb snapshots for Switzerland had a

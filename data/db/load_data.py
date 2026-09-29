@@ -1,32 +1,28 @@
-"""Load InsideAirbnb snapshots of Vaud into the SmartBnB database.
+"""Extract and load step of the SmartBnB pipeline (the E and L of ELT).
 
 Snapshots are read from data/snapshots/*.csv.gz, a clone of the private
 SmartBnB-data repository (the Inside Airbnb data policies ask not to
 republish the data), so the database can be rebuilt from it. Downloaded
 snapshots are saved there too, to be committed to that repository, with only
-the columns the loader uses (PUBLISHED_COLS). By
-default only scrapes that are not in the database yet are added, so the
-history is never lost. Everything runs in one transaction, following
-Write-Audit-Publish:
-  - write: new scrapes are added, listings and amenities are refreshed from
-    each listing's latest scrape, prices and neighbourhood stats recomputed
-  - audit: quality.py measures the result and checks it
-  - publish: the transaction is committed only when no blocking check
-    failed; otherwise it is rolled back and the site keeps the previous data
-Each run and its metrics are stored in public.etl_runs.
+the columns the loader uses (PUBLISHED_COLS).
 
-Exit code: 0 published, 2 published with warnings, 1 blocked or failed.
+The rows are loaded typed but otherwise as received: the business rules
+(which prices are plausible, time windows) live in the dbt models of
+data/transform. Nothing is written to the public schema the site reads: the
+load fills a candidate copy of the raw tables in the build schema (the
+published tables plus the new scrapes), which dbt transforms and tests there.
+data/db/pipeline.py then audits it and publishes it (Write-Audit-Publish).
+By default only scrapes that are not published yet are added, so the history
+is never lost.
 
-Usage:
+Usage (pipeline.py runs this step; alone it only fills the build schema):
   python load_data.py                 # add new scrapes found on disk
   python load_data.py --fetch         # download the latest snapshot first
   python load_data.py --dates 2025-07-04 2025-08-03   # download these first
   python load_data.py --reload 2026-06-15   # replace a republished file's scrape
-  python load_data.py --full          # wipe the data tables and reload all
-  python load_data.py --init          # recreate schema + seed, then --full
+  python load_data.py --full          # start from the files only
   python load_data.py --minimize      # drop unused columns from the snapshots
   python load_data.py --check         # fail if a file has unused columns
-  python load_data.py --dry-run       # load and audit, then roll back
 
 DATABASE_URL is read from the environment or data/db/.env.
 """
@@ -43,12 +39,15 @@ from pathlib import Path
 
 import pandas as pd
 import psycopg
-from psycopg.types.json import Jsonb
-
-import quality
 
 HERE = Path(__file__).resolve().parent
-DATA_DIR = HERE.parent / "snapshots"
+# SNAPSHOTS_DIR lets the CI run the pipeline on synthetic files
+DATA_DIR = Path(os.environ.get("SNAPSHOTS_DIR") or HERE.parent / "snapshots")
+
+# Where the candidate data is built before it is published
+BUILD_SCHEMA = "build"
+# Tables this step loads, in foreign key order (listings first)
+RAW_TABLES = ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities")
 
 INSIDE_AIRBNB_PAGE = "https://insideairbnb.com/get-the-data/"
 SNAPSHOT_URL = "https://data.insideairbnb.com/switzerland/vd/vaud/{date}/data/listings.csv.gz"
@@ -254,24 +253,12 @@ def build_listings(df):
     return latest
 
 
-# Some InsideAirbnb scrapes ship a broken price column (e.g. every value
-# below 1 in mid-2026). A scrape whose median nightly price is below this is
-# treated as having no price data.
-MIN_PLAUSIBLE_MEDIAN_PRICE = 5
-
-
 def build_snapshots(df):
+    """Typed snapshot rows. Prices stay as scraped: which ones are plausible
+    is decided by the stg_snapshots dbt model."""
     snap = df.rename(columns={"id": "listing_id"})[SNAPSHOT_COLS].copy()
     for col in ("price", "reviews_per_month", *REVIEW_COLS):
         snap[col] = to_number(snap[col])
-    medians = snap.groupby("scrape_id")["price"].median()
-    for scrape_id, median in medians.items():
-        if pd.notna(median) and median < MIN_PLAUSIBLE_MEDIAN_PRICE:
-            snap.loc[snap["scrape_id"] == scrape_id, "price"] = float("nan")
-            print(f"  warning: scrape {scrape_id} has implausible prices "
-                  f"(median {median}), prices ignored")
-    # Remaining isolated values below a plausible nightly price are dropped too
-    snap.loc[snap["price"] < MIN_PLAUSIBLE_MEDIAN_PRICE, "price"] = float("nan")
     for col in ("scrape_id", "minimum_nights", "number_of_reviews", "number_of_reviews_ltm"):
         snap[col] = pd.to_numeric(snap[col], errors="coerce").astype("Int64")
     snap["last_scraped"] = snap["last_scraped"].dt.date
@@ -318,15 +305,15 @@ def copy_rows(cur, table, columns, rows):
             copy.write_row(row)
 
 
-STAGE_SQL = """
+STAGE_SQL = f"""
 CREATE TEMP TABLE stage_listings ON COMMIT DROP AS
-  SELECT *, NULL::date AS last_scraped FROM public.airbnb_vaud WITH NO DATA;
+  SELECT *, NULL::date AS last_scraped FROM {BUILD_SCHEMA}.airbnb_vaud WITH NO DATA;
 
 CREATE TEMP TABLE stage_snapshots ON COMMIT DROP AS
-  SELECT * FROM public.airbnb_snapshots WITH NO DATA;
+  SELECT * FROM {BUILD_SCHEMA}.airbnb_snapshots WITH NO DATA;
 
 CREATE TEMP TABLE stage_amenities ON COMMIT DROP AS
-  SELECT * FROM public.airbnb_amenities WITH NO DATA
+  SELECT * FROM {BUILD_SCHEMA}.airbnb_amenities WITH NO DATA
 """
 
 _cols = ", ".join(LISTING_COLS)
@@ -334,12 +321,12 @@ _updates = ",\n  ".join(f"{c} = EXCLUDED.{c}" for c in LISTING_COLS if c != "id"
 
 # Runs once the new rows are copied into the stage_* temp tables.
 MERGE_SQL = f"""
--- Listings must exist before their snapshots (foreign key).
-INSERT INTO public.airbnb_vaud ({_cols})
+-- Listings first, as their snapshots refer to them.
+INSERT INTO {BUILD_SCHEMA}.airbnb_vaud ({_cols})
 SELECT {_cols} FROM stage_listings
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.airbnb_snapshots ({", ".join(SNAPSHOT_COLS)})
+INSERT INTO {BUILD_SCHEMA}.airbnb_snapshots ({", ".join(SNAPSHOT_COLS)})
 SELECT {", ".join(SNAPSHOT_COLS)} FROM stage_snapshots
 ON CONFLICT (listing_id, scrape_id) DO NOTHING;
 
@@ -348,183 +335,84 @@ CREATE TEMP TABLE fresh ON COMMIT DROP AS
 SELECT st.id
 FROM stage_listings st
 WHERE st.last_scraped = (
-  SELECT MAX(s.last_scraped) FROM public.airbnb_snapshots s WHERE s.listing_id = st.id
+  SELECT MAX(s.last_scraped) FROM {BUILD_SCHEMA}.airbnb_snapshots s WHERE s.listing_id = st.id
 );
 
-INSERT INTO public.airbnb_vaud ({_cols})
+INSERT INTO {BUILD_SCHEMA}.airbnb_vaud ({_cols})
 SELECT {", ".join("st." + c for c in LISTING_COLS)}
 FROM stage_listings st JOIN fresh f ON f.id = st.id
 ON CONFLICT (id) DO UPDATE SET
   {_updates};
 
-DELETE FROM public.airbnb_amenities WHERE airbnb_id IN (SELECT id FROM fresh);
+DELETE FROM {BUILD_SCHEMA}.airbnb_amenities WHERE airbnb_id IN (SELECT id FROM fresh);
 
-INSERT INTO public.airbnb_amenities (airbnb_id, amenity_id)
+INSERT INTO {BUILD_SCHEMA}.airbnb_amenities (airbnb_id, amenity_id)
 SELECT sa.airbnb_id, sa.amenity_id
 FROM stage_amenities sa JOIN fresh f ON f.id = sa.airbnb_id
 """
 
-DERIVED_SQL = """
-TRUNCATE public.airbnb_points, public.current_prices,
-         public.neighbourhood_room_type_stats, public.neighbourhood_stats,
-         public.price_trends;
 
--- Latest plausible price of each listing, from the Inside Airbnb snapshots
--- or from the price scraper (price_observations, see data/prices), whichever is
--- newer, if seen in the 6 months before the newest price. A price outside
--- the plausible range (quality.MIN/MAX_NIGHTLY_PRICE) is skipped, so the
--- listing keeps its previous plausible price.
-INSERT INTO public.current_prices (listing_id, price, price_date)
-WITH prices AS (
-  SELECT listing_id, price, last_scraped AS price_date
-  FROM public.airbnb_snapshots
-  WHERE price BETWEEN %(min_price)s AND %(max_price)s
-  UNION ALL
-  SELECT listing_id, nightly_price::double precision, observed_at::date
-  FROM public.price_observations
-  WHERE status = 'ok' AND nightly_price BETWEEN %(min_price)s AND %(max_price)s
-)
-SELECT DISTINCT ON (p.listing_id) p.listing_id, p.price, p.price_date
-FROM prices p
-JOIN public.airbnb_vaud v ON v.id = p.listing_id
-WHERE p.price_date >= (SELECT MAX(price_date) FROM prices) - interval '6 months'
-ORDER BY p.listing_id, p.price_date DESC;
-
-INSERT INTO public.airbnb_points (airbnb_id, total_points)
-SELECT aa.airbnb_id, SUM(ap.point)
-FROM public.airbnb_amenities aa
-JOIN public.amenity_points ap ON ap.amenity_id = aa.amenity_id
-GROUP BY aa.airbnb_id;
-
--- Price stats of the current market: one price per listing (its latest),
--- among prices seen in the last months before the newest one.
-INSERT INTO public.neighbourhood_room_type_stats
-  (neighbourhood, room_type, avg_price, median_price, count_airbnb)
-SELECT
-  v.neighbourhood_cleansed,
-  v.room_type,
-  AVG(cp.price),
-  percentile_cont(0.5) WITHIN GROUP (ORDER BY cp.price),
-  COUNT(*)
-FROM public.current_prices cp
-JOIN public.airbnb_vaud v ON v.id = cp.listing_id
-WHERE cp.price_date >= (SELECT MAX(price_date) FROM public.current_prices)
-                       - make_interval(months => %(months)s)
-  AND v.neighbourhood_cleansed IS NOT NULL
-  AND v.room_type IS NOT NULL
-GROUP BY 1, 2;
-
--- Per neighbourhood: mean of each snapshot's average review score, and
--- mean reviews_per_month (the baseline for the score's reviews component).
-INSERT INTO public.neighbourhood_stats
-  (neighbourhood, avg_reviews, avg_reviews_per_month)
-SELECT v.neighbourhood_cleansed, AVG(r.row_avg), AVG(s.reviews_per_month)
-FROM public.airbnb_snapshots s
-JOIN public.airbnb_vaud v ON v.id = s.listing_id
-CROSS JOIN LATERAL (
-  SELECT AVG(x) AS row_avg
-  FROM unnest(ARRAY[
-    s.review_scores_rating, s.review_scores_accuracy,
-    s.review_scores_cleanliness, s.review_scores_checkin,
-    s.review_scores_communication, s.review_scores_location,
-    s.review_scores_value
-  ]) AS x
-) r
-WHERE s.last_scraped >= (SELECT MAX(last_scraped) FROM public.airbnb_snapshots)
-                        - make_interval(months => %(months)s)
-  AND v.neighbourhood_cleansed IS NOT NULL
-GROUP BY 1;
-
--- Price trend per region ("Prices this year" on the site): median price in
--- the first priced scrape of the 12 months before the latest priced scrape,
--- against the latest one. Computed here once per load instead of on every
--- request. No row when a single scrape has prices: nothing to compare.
-INSERT INTO public.price_trends
-  (region, start_date, end_date, start_median, end_median, pct)
-WITH priced AS (
-  SELECT scrape_id, MIN(last_scraped) AS scraped_on
-  FROM public.airbnb_snapshots
-  WHERE price IS NOT NULL
-  GROUP BY scrape_id
-),
-bounds AS (
-  SELECT
-    (SELECT MIN(scrape_id) FROM priced
-      WHERE scraped_on >= (SELECT MAX(scraped_on) FROM priced) - interval '12 months') AS m_min,
-    (SELECT MAX(scrape_id) FROM priced) AS m_max
-),
-agg AS (
-  SELECT
-    COALESCE(v.neighbourhood_group_cleansed, 'Unknown') AS region,
-    s.scrape_id,
-    -- double precision: some databases store price as real, and the
-    -- percentage must not be computed at real precision
-    percentile_disc(0.5) WITHIN GROUP (ORDER BY s.price)::double precision AS median
-  FROM public.airbnb_snapshots s
-  JOIN public.airbnb_vaud v ON v.id = s.listing_id
-  WHERE s.price IS NOT NULL
-    AND s.scrape_id IN (SELECT m_min FROM bounds UNION SELECT m_max FROM bounds)
-  GROUP BY 1, 2
-)
-SELECT
-  a_min.region,
-  p_min.scraped_on,
-  p_max.scraped_on,
-  a_min.median,
-  a_max.median,
-  CASE WHEN a_min.median > 0
-       THEN (a_max.median - a_min.median) / a_min.median * 100.0 END
-FROM bounds b
-JOIN agg a_min ON a_min.scrape_id = b.m_min
-JOIN agg a_max ON a_max.scrape_id = b.m_max AND a_max.region = a_min.region
-JOIN priced p_min ON p_min.scrape_id = b.m_min
-JOIN priced p_max ON p_max.scrape_id = b.m_max
-WHERE b.m_min < b.m_max;
-"""
+def prepare_build(cur, full):
+    """Starts the candidate raw tables in the build schema: a copy of the
+    published tables, or empty ones for a full reload. They have the columns,
+    keys and indexes of the public tables, so publishing them is a plain copy."""
+    cur.execute("SELECT 1 FROM pg_namespace WHERE nspname = %s", (BUILD_SCHEMA,))
+    if cur.fetchone() is None:
+        # The loader role cannot create schemas: the migration creates this one
+        cur.execute(f"CREATE SCHEMA {BUILD_SCHEMA}")
+    for table in RAW_TABLES:
+        # CASCADE also drops the dbt staging views on it; the next dbt build recreates them
+        cur.execute(f"DROP TABLE IF EXISTS {BUILD_SCHEMA}.{table} CASCADE")
+        cur.execute(f"""CREATE TABLE {BUILD_SCHEMA}.{table}
+                        (LIKE public.{table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)""")
+        if not full:
+            cur.execute(f"INSERT INTO {BUILD_SCHEMA}.{table} SELECT * FROM public.{table}")
 
 
-def run_statements(cur, sql, params=None):
-    for statement in sql.split(";\n\n"):
-        cur.execute(statement, params)
+def load(cur, full=False, reload=()):
+    """Fills the build schema with the published raw data plus the new scrapes
+    found on disk, in the current transaction. Returns the number of new scrapes."""
+    prepare_build(cur, full)
+    cur.execute(f"SELECT DISTINCT scrape_id FROM {BUILD_SCHEMA}.airbnb_snapshots")
+    known = {row[0] for row in cur.fetchall()}
+    if reload:
+        # Republished files keep their scrape id: forget those scrapes so
+        # they are loaded again from the new files
+        reloaded = scrape_ids(reload)
+        cur.execute(f"DELETE FROM {BUILD_SCHEMA}.airbnb_snapshots WHERE scrape_id = ANY(%s)",
+                    (sorted(reloaded),))
+        print(f"Reloading {len(reloaded)} scrape(s): {cur.rowcount} old rows removed")
+        known -= reloaded
+
+    print("Reading snapshots...")
+    df = read_csvs()
+    df = df[~pd.to_numeric(df["scrape_id"], errors="coerce").isin(known)]
+    new_scrapes = int(df["scrape_id"].nunique())
+    if df.empty:
+        print("No new scrape")
+    else:
+        print(f"Adding {new_scrapes} new scrape(s), "
+              f"{df['last_scraped'].min():%Y-%m-%d} to {df['last_scraped'].max():%Y-%m-%d}")
+        cur.execute(STAGE_SQL)
+        copy_rows(cur, "stage_listings", [*LISTING_COLS, "last_scraped"], clean_rows(build_listings(df)))
+        copy_rows(cur, "stage_snapshots", SNAPSHOT_COLS, clean_rows(build_snapshots(df)))
+        copy_rows(cur, "stage_amenities", ["airbnb_id", "amenity_id"], build_amenities(df))
+        cur.execute(MERGE_SQL)
+
+    for table in RAW_TABLES:
+        cur.execute(f"SELECT COUNT(*) FROM {BUILD_SCHEMA}.{table}")
+        print(f"  {BUILD_SCHEMA}.{table}: {cur.fetchone()[0]} rows")
+    return new_scrapes
 
 
-def start_run(url, trigger, mode, dry_run):
-    """Opens the run log: a separate autocommit connection, so the row stays
-    even when the load itself is rolled back. Returns (connection, run id),
-    or (None, None) when the etl_runs table does not exist yet."""
-    log = psycopg.connect(url, autocommit=True, prepare_threshold=None)
-    try:
-        run_id = log.execute(
-            "INSERT INTO public.etl_runs (trigger, mode, dry_run) VALUES (%s, %s, %s) RETURNING id",
-            (trigger, mode, dry_run)).fetchone()[0]
-    except psycopg.errors.UndefinedTable:
-        print("  warning: public.etl_runs does not exist (data/db/schema.sql), run not logged")
-        log.close()
-        return None, None
-    return log, run_id
-
-
-def finish_run(log, run_id, status, new_scrapes=None, metrics=None, results=(), error=None):
-    if log is None:
-        return
-    log.execute(
-        """UPDATE public.etl_runs
-           SET finished_at = now(), status = %s, new_scrapes = %s,
-               metrics = %s, checks = %s, error = %s
-           WHERE id = %s""",
-        (status, new_scrapes, Jsonb(metrics) if metrics is not None else None,
-         Jsonb([r.as_dict() for r in results]), error, run_id))
-    log.close()
-
-
-def previous_metrics(cur):
-    """Metrics of the last run that was published, or None."""
-    cur.execute("""
-        SELECT metrics FROM public.etl_runs
-        WHERE status IN ('success', 'warning') AND NOT dry_run AND metrics IS NOT NULL
-        ORDER BY finished_at DESC LIMIT 1""")
-    row = cur.fetchone()
-    return row[0] if row else None
+def fetch(dates, latest=False):
+    """Downloads the snapshots of these dates, and the newest one if latest."""
+    dates = list(dates)
+    if latest:
+        dates.append(latest_snapshot_date())
+    if dates:
+        print("Fetching snapshots...")
+        fetch_snapshots(dates)
 
 
 def main():
@@ -532,13 +420,9 @@ def main():
     parser.add_argument("--fetch", action="store_true", help="download the latest InsideAirbnb snapshot first")
     parser.add_argument("--dates", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="download these snapshots first")
     parser.add_argument("--reload", nargs="+", default=[], type=snapshot_date, metavar="YYYY-MM-DD", help="replace the scrapes of these files, e.g. after Inside Airbnb republished them")
-    parser.add_argument("--full", action="store_true", help="wipe the data tables and reload every file on disk")
-    parser.add_argument("--init", action="store_true", help="recreate schema + seed (drops all tables), implies --full")
-    parser.add_argument("--stats-months", type=int, default=3, help="window for neighbourhood stats (default 3)")
+    parser.add_argument("--full", action="store_true", help="start from the files only, not from the published tables")
     parser.add_argument("--minimize", action="store_true", help="drop the unpublished columns from the snapshot files, then stop")
     parser.add_argument("--check", action="store_true", help="fail if a snapshot file has unpublished columns (no database needed)")
-    parser.add_argument("--dry-run", action="store_true", help="load and audit, then roll back instead of publishing")
-    parser.add_argument("--trigger", default="manual", help="who started the run, stored in etl_runs (default manual)")
     args = parser.parse_args()
 
     if args.minimize:
@@ -550,102 +434,11 @@ def main():
         check_files()
         return
 
-    dates = list(args.dates)
-    if args.fetch:
-        dates.append(latest_snapshot_date())
-    if dates:
-        print("Fetching snapshots...")
-        fetch_snapshots(dates)
-
-    url = read_database_url()
-    mode = "init" if args.init else "full" if args.full else "incremental"
-    log, run_id = start_run(url, args.trigger, mode, args.dry_run)
-    new_scrapes, metrics, results = 0, None, []
-    try:
-        with psycopg.connect(url, prepare_threshold=None) as conn:
-            with conn.cursor() as cur:
-                new_scrapes = write(cur, args)
-                previous = previous_metrics(cur) if log else None
-
-                print("Auditing...")
-                metrics = quality.measure(cur)
-                results = quality.evaluate(metrics, previous)
-                print("\n".join(quality.report(results)))
-                outcome = quality.summary(results)
-
-                if outcome == "error":
-                    conn.rollback()
-                    print("Blocked: a blocking check failed, nothing was published "
-                          "and the site keeps the previous data.")
-                elif args.dry_run:
-                    conn.rollback()
-                    print("Dry run: rolled back, nothing was published.")
-                else:
-                    print("Published." if outcome == "success" else "Published with warnings.")
-    except BaseException as e:
-        finish_run(log, run_id, "failed", new_scrapes, metrics, results, f"{type(e).__name__}: {e}"[:2000])
-        raise
-
-    status = "blocked" if outcome == "error" else outcome
-    finish_run(log, run_id, status, new_scrapes, metrics, results)
-    if run_id:
-        print(f"Run {run_id} logged in public.etl_runs as {status}.")
-    raise SystemExit({"success": 0, "warning": 2}.get(status, 1))
-
-
-def write(cur, args):
-    """The Write step: adds the new scrapes and recomputes the derived tables
-    in the current transaction. Returns the number of new scrapes."""
-    if args.init:
-        cur.execute((HERE / "schema.sql").read_text(encoding="utf-8"))
-        cur.execute((HERE / "seed.sql").read_text(encoding="utf-8"))
-        print("Schema + seed applied")
-    if args.full or args.init:
-        cur.execute("""
-            TRUNCATE public.airbnb_vaud, public.airbnb_snapshots,
-                     public.airbnb_amenities, public.airbnb_points,
-                     public.current_prices,
-                     public.neighbourhood_room_type_stats,
-                     public.neighbourhood_stats, public.price_trends
-        """)
-        known = set()
-    else:
-        cur.execute("SELECT DISTINCT scrape_id FROM public.airbnb_snapshots")
-        known = {row[0] for row in cur.fetchall()}
-        if args.reload:
-            # Republished files keep their scrape id: forget those scrapes so
-            # they are loaded again from the new files, in this transaction
-            reloaded = scrape_ids(args.reload)
-            cur.execute("DELETE FROM public.airbnb_snapshots WHERE scrape_id = ANY(%s)",
-                        (sorted(reloaded),))
-            print(f"Reloading {len(reloaded)} scrape(s): {cur.rowcount} old rows removed")
-            known -= reloaded
-
-    print("Reading snapshots...")
-    df = read_csvs()
-    df = df[~pd.to_numeric(df["scrape_id"], errors="coerce").isin(known)]
-    new_scrapes = int(df["scrape_id"].nunique())
-    if df.empty:
-        print("No new scrape, refreshing derived tables only")
-    else:
-        print(f"Adding {new_scrapes} new scrape(s), "
-              f"{df['last_scraped'].min():%Y-%m-%d} to {df['last_scraped'].max():%Y-%m-%d}")
-        run_statements(cur, STAGE_SQL)
-        copy_rows(cur, "stage_listings", [*LISTING_COLS, "last_scraped"], clean_rows(build_listings(df)))
-        copy_rows(cur, "stage_snapshots", SNAPSHOT_COLS, clean_rows(build_snapshots(df)))
-        copy_rows(cur, "stage_amenities", ["airbnb_id", "amenity_id"], build_amenities(df))
-        run_statements(cur, MERGE_SQL)
-
-    run_statements(cur, DERIVED_SQL, {"months": args.stats_months,
-                                      "min_price": quality.MIN_NIGHTLY_PRICE,
-                                      "max_price": quality.MAX_NIGHTLY_PRICE})
-
-    for table in ("airbnb_vaud", "airbnb_snapshots", "airbnb_amenities", "airbnb_points",
-                  "current_prices", "neighbourhood_room_type_stats", "neighbourhood_stats",
-                  "price_trends"):
-        cur.execute(f"SELECT COUNT(*) FROM public.{table}")
-        print(f"  {table}: {cur.fetchone()[0]} rows")
-    return new_scrapes
+    fetch(args.dates, args.fetch)
+    with psycopg.connect(read_database_url(), prepare_threshold=None) as conn:
+        with conn.cursor() as cur:
+            load(cur, full=args.full, reload=args.reload)
+    print(f"Loaded into the {BUILD_SCHEMA} schema. Run pipeline.py to transform, audit and publish.")
 
 
 if __name__ == "__main__":
