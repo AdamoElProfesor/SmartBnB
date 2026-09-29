@@ -4,10 +4,13 @@
   <header class="nav">
     <div class="wrap nav-row">
       <a href="#evaluate" class="brand" aria-label="SmartBnB home">
+        <!-- A roof over the prices of similar stays; the green bar is this listing, a good deal -->
         <svg viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M3 22c4-6 8-9 13-9s9 3 13 9" />
-          <path d="M8 22c3-3.5 5-5 8-5s5 1.5 8 5" />
-          <circle cx="16" cy="9" r="2.5" />
+          <path class="roof" d="M3.4 15.4 16 4.2l12.6 11.2" />
+          <rect x="5.9" y="19.5" width="4" height="9.3" rx="1.1" />
+          <rect x="11.3" y="14.8" width="4" height="14" rx="1.1" />
+          <rect x="16.7" y="17.4" width="4" height="11.4" rx="1.1" />
+          <rect class="pick" x="22.1" y="22.6" width="4" height="6.2" rx="1.1" />
         </svg>
         SmartBnB
       </a>
@@ -144,8 +147,9 @@ button { font-family: inherit; }
 }
 .nav-row { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; text-decoration: none; }
-.brand svg { width: 28px; height: 28px; fill: none; stroke: var(--lake); stroke-width: 2.2; stroke-linecap: round; }
-.brand svg circle { fill: var(--bad); stroke: none; }
+.brand svg { width: 28px; height: 28px; flex: none; fill: var(--lake); }
+.brand svg .roof { fill: none; stroke: var(--lake); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.brand svg .pick { fill: var(--good); }
 .nav nav { display: flex; gap: 4px; }
 .nav nav a { text-decoration: none; padding: 8px 12px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
 .nav nav a:hover { color: var(--ink); background: var(--paper-2); }
