@@ -17,13 +17,15 @@ with listings as (
     where l.neighbourhood is not null
 )
 
+-- Means are summed as numeric: a floating point sum depends on the order of
+-- the rows, which can change between runs, and a run must be reproducible
 select
     neighbourhood,
-    avg(review_scores_rating) as avg_rating,
+    avg(review_scores_rating::numeric)::double precision as avg_rating,
     -- Former name of avg_rating, kept until the backend reads avg_rating
     -- everywhere (expand / contract), then dropped
-    avg(review_scores_rating) as avg_reviews,
-    avg(reviews_per_month_filled) as avg_reviews_per_month,
+    avg(review_scores_rating::numeric)::double precision as avg_reviews,
+    avg(reviews_per_month_filled::numeric)::double precision as avg_reviews_per_month,
     count(*) as n_listings,
     count(review_scores_rating) as n_rated_listings
 from listings

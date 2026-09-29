@@ -52,6 +52,11 @@ def main():
         if not ok:
             failures.append(what)
 
+    def same_tables(before, what):
+        after = fingerprint(url)
+        changed = [t for t in PUBLISHED_TABLES if after[t] != before[t]]
+        expect(not changed, f"{what}{': changed ' + ', '.join(changed) if changed else ''}")
+
     with tempfile.TemporaryDirectory() as snapshots:
         write_fixture(snapshots)
         env = {**os.environ, "SNAPSHOTS_DIR": snapshots}
@@ -61,10 +66,10 @@ def main():
         expect(all(rows > 0 for rows, _ in first.values()), "every published table has rows")
 
         expect(pipeline("--trigger", "ci", env=env) == 0, "second run publishes")
-        expect(fingerprint(url) == first, "a run without new files changes nothing (idempotent)")
+        same_tables(first, "a run without new files changes nothing (idempotent)")
 
         expect(pipeline("--dry-run", "--trigger", "ci", env=env) == 0, "dry run passes")
-        expect(fingerprint(url) == first, "a dry run changes nothing")
+        same_tables(first, "a dry run changes nothing")
 
     with psycopg.connect(url) as conn:
         q = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
