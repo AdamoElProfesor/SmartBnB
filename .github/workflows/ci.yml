@@ -2,7 +2,8 @@ name: CI
 
 # Runs on every pull request to main and on main itself. "Build + Tests" is the
 # required check of the protected main branch, and Render deploys main only
-# once it passes. Tests mock the database and the AI, so they need no secrets.
+# once it passes. The app tests mock the database and the AI, and the data
+# pipeline runs on synthetic data in a throwaway Postgres: no secret needed.
 on:
   pull_request:
     branches: ["main"]
@@ -21,6 +22,16 @@ jobs:
   build-and-test:
     name: Build + Tests
     runs-on: ubuntu-latest
+
+    # Throwaway Postgres for the end-to-end run of the data pipeline
+    services:
+      postgres:
+        image: postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
 
     steps:
       - name: Checkout
@@ -64,3 +75,28 @@ jobs:
             echo "::error::Data files must not be committed to this public repository: ${published}"
             exit 1
           fi
+
+      # The whole pipeline (extract-load, dbt build, publish, audit) on
+      # synthetic snapshots and the throwaway Postgres: it must publish, and a
+      # second run with no new file must change nothing (idempotence)
+      - name: Run the data pipeline end to end
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: /tmp/venv/bin/python data/db/tests/e2e_pipeline.py
+
+      # Data dictionary and lineage graph of the dbt models, as one HTML page
+      # (download it from the run's artifacts)
+      - name: Generate the dbt docs
+        env:
+          DBT_HOST: localhost
+          DBT_USER: postgres
+          DBT_PASSWORD: postgres
+        run: /tmp/venv/bin/dbt docs generate --static --project-dir data/transform --profiles-dir data/transform
+
+      - name: Upload the dbt docs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dbt-docs
+          path: data/transform/target/static_index.html
+          retention-days: 30
+          if-no-files-found: error
