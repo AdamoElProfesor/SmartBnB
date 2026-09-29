@@ -87,6 +87,21 @@ describe("Score endpoints", () => {
     );
     expect(response.body.smart_score).toBeGreaterThanOrEqual(0);
     expect(response.body.smart_score).toBeLessThanOrEqual(100);
+    expect(scoreService.computeFromUrl).toHaveBeenCalledWith("https://www.airbnb.com/rooms/53584592", { lang: "en" });
+  });
+
+  test("POST /score passes the requested language to the analysis", async () => {
+    scoreService.computeFromUrl.mockResolvedValue({ ok: true, listing_id: "1", smart_score: 50 });
+    const response = await request(app).post("/api/score").send({ airbnbUrl: "1", lang: "fr" });
+    expect(response.status).toBe(200);
+    expect(scoreService.computeFromUrl).toHaveBeenCalledWith("1", { lang: "fr" });
+  });
+
+  test.each([["de"], ["FR"], [""], [["fr"]], [1]])("POST /score returns 400 for the language %j", async (lang) => {
+    const response = await request(app).post("/api/score").send({ airbnbUrl: "1", lang });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ ok: false, error: "lang must be one of en, fr" });
+    expect(scoreService.computeFromUrl).not.toHaveBeenCalled();
   });
 
   test("POST /score returns 400 for invalid URL", async () => {

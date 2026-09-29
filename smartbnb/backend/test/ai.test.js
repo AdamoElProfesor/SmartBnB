@@ -114,10 +114,29 @@ describe("AI pros/cons", () => {
     await expect(ai.chatProsCons(input)).resolves.toEqual({ pros: [], cons: [], summary: "" });
   });
 
+  test("the prompt asks for the requested language, English by default", async () => {
+    const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret" });
+    reply(JSON.stringify(analysis));
+    await ai.chatProsCons(input);
+    await ai.chatProsCons({ ...input, lang: "fr" });
+    expect(mockCreate.mock.calls[0][0].messages[1].content).toContain("- Write in English, in a concise and clear style.");
+    expect(mockCreate.mock.calls[1][0].messages[1].content).toContain("- Write in French, in a concise and clear style.");
+  });
+
+  test("each language has its own cache key", () => {
+    const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret", AI_MODEL: "m1" });
+    const en = ai.analysisCacheKey(input);
+    const fr = ai.analysisCacheKey({ ...input, lang: "fr" });
+    expect(en.lang).toBe("en");
+    expect(ai.analysisCacheKey({ ...input, lang: "en" })).toEqual(en);
+    expect(fr.lang).toBe("fr");
+    expect(fr.dataVersion).not.toBe(en.dataVersion);
+  });
+
   test("cache key follows the model and the data sent to it", () => {
     const ai = loadAi({ AI_BASE_URL: "https://ai.example.com/v1", AI_API_KEY: "secret", AI_MODEL: "m1" });
     const key = ai.analysisCacheKey(input);
-    expect(key).toEqual({ model: "m1", dataVersion: expect.stringMatching(/^sha256:[0-9a-f]{32}$/) });
+    expect(key).toEqual({ model: "m1", dataVersion: expect.stringMatching(/^sha256:[0-9a-f]{32}$/), lang: "en" });
     expect(ai.analysisCacheKey(input)).toEqual(key);
     expect(ai.analysisCacheKey({ ...input, smartScore: 71 }).dataVersion).not.toBe(key.dataVersion);
     expect(ai.analysisCacheKey({ ...input, listing: { ...input.listing, price: 90 } }).dataVersion).not.toBe(
