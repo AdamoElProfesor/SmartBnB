@@ -1,0 +1,86 @@
+version: 2
+
+models:
+  - name: stg_listings
+    description: One row per listing ever seen, renamed for the models downstream.
+    columns:
+      - name: listing_id
+        description: Airbnb listing id.
+        data_tests: [unique, not_null]
+      - name: neighbourhood
+        description: Municipality of the listing (Inside Airbnb neighbourhood_cleansed).
+      - name: neighbourhood_group
+        description: District of the listing (Inside Airbnb neighbourhood_group_cleansed).
+      - name: room_type
+        description: Inside Airbnb room type.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["Entire home/apt", "Private room", "Shared room", "Hotel room"]
+
+  - name: stg_snapshots
+    description: >
+      One row per listing per scrape. price is null when the scrape's median
+      price is below min_plausible_price (a broken price column) or when the
+      price itself is below it (a parsing error).
+    data_tests:
+      - unique_columns:
+          arguments:
+            columns: [listing_id, scrape_id]
+    columns:
+      - name: listing_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_listings')
+                field: listing_id
+      - name: scrape_id
+        description: Inside Airbnb scrape id, one per monthly file.
+        data_tests: [not_null]
+      - name: last_scraped
+        description: Day the listing was scraped.
+      - name: price
+        description: Nightly price in CHF, or null when it is not usable.
+
+  - name: stg_amenities
+    description: Which listing has which amenity category.
+    data_tests:
+      - unique_columns:
+          arguments:
+            columns: [listing_id, amenity_id]
+
+  - name: stg_price_observations
+    description: Nightly prices found by the price scraper (status ok), with the day they were seen.
+    columns:
+      - name: listing_id
+        data_tests: [not_null]
+      - name: price
+        description: Nightly price in CHF, taxes excluded.
+        data_tests: [not_null]
+      - name: price_date
+        data_tests: [not_null]
+
+unit_tests:
+  - name: broken_scrape_prices_are_dropped
+    description: >
+      A scrape whose median price is below 5 CHF has no usable price; in a
+      normal scrape only the prices below 5 CHF are dropped.
+    model: stg_snapshots
+    given:
+      - input: source('raw', 'airbnb_snapshots')
+        rows:
+          - {listing_id: 1, scrape_id: 100, price: 0.5}
+          - {listing_id: 2, scrape_id: 100, price: 0.8}
+          - {listing_id: 3, scrape_id: 100, price: 150}
+          - {listing_id: 1, scrape_id: 200, price: 150}
+          - {listing_id: 2, scrape_id: 200, price: 3}
+          - {listing_id: 3, scrape_id: 200, price: 120}
+    expect:
+      rows:
+        - {listing_id: 1, scrape_id: 100, price: null}
+        - {listing_id: 2, scrape_id: 100, price: null}
+        - {listing_id: 3, scrape_id: 100, price: null}
+        - {listing_id: 1, scrape_id: 200, price: 150}
+        - {listing_id: 2, scrape_id: 200, price: null}
+        - {listing_id: 3, scrape_id: 200, price: 120}

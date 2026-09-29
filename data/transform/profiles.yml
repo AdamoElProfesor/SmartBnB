@@ -1,0 +1,16 @@
+# Connection of dbt. data/db/pipeline.py fills these variables from
+# DATABASE_URL, so the pipeline needs a single secret. Every model is built
+# in the "build" schema, never in "public" (the site's schema).
+smartbnb:
+  target: build
+  outputs:
+    build:
+      type: postgres
+      host: "{{ env_var('DBT_HOST') }}"
+      port: "{{ env_var('DBT_PORT', '5432') | as_number }}"
+      user: "{{ env_var('DBT_USER') }}"
+      password: "{{ env_var('DBT_PASSWORD', '') }}"
+      dbname: "{{ env_var('DBT_DBNAME', 'postgres') }}"
+      sslmode: "{{ env_var('DBT_SSLMODE', 'prefer') }}"
+      schema: build
+      threads: 4

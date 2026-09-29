@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: int_listing_prices
+    description: >
+      Every plausible nightly price of each listing (min_nightly_price to
+      max_nightly_price CHF), from both sources, with the day it was seen.
+    columns:
+      - name: listing_id
+        data_tests: [not_null]
+      - name: price
+        description: Nightly price in CHF.
+        data_tests: [not_null]
+      - name: price_date
+        data_tests: [not_null]
+      - name: source
+        description: Where the price comes from.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["inside_airbnb", "price_collection"]

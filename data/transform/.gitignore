@@ -1,0 +1,5 @@
+# dbt build output and logs
+target/
+logs/
+dbt_packages/
+.user.yml
