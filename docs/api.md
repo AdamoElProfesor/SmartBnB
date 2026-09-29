@@ -111,6 +111,9 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   (`airbnb.<tld>/l/<code>`, `airbnb.<tld>/h/<name>`, `abnb.me/<code>`).
   Share links are resolved by following their redirects, only to Airbnb
   hosts over https, with a 3 second timeout.
+- `lang` (optional): language of the AI analysis, `en` (default) or `fr`.
+  Any other value answers `400` with `"lang must be one of en, fr"`. The
+  site sends the language the visitor picked.
 
 ### Response
 
@@ -153,11 +156,12 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   `analysis` is empty (`pros: [], cons: [], summary: ""`) when no AI key is
   set, the AI call fails (the listing is then not retried for 5 minutes), or
   the daily AI budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default).
-  It holds at most 4 pros and 4 cons. `analysis_cached` is `true` when it comes from the
-  `ai_analyses` cache instead of a new AI call. Fields without data are `null`.
+  It holds at most 4 pros and 4 cons, written in `lang`. `analysis_cached` is `true` when it comes from the
+  `ai_analyses` cache instead of a new AI call. Each language is cached
+  separately. Fields without data are `null`.
 
 - `400 Bad Request` -> `"Invalid Airbnb URL"` (missing, empty or not a
-  listing URL)
+  listing URL) or `"lang must be one of en, fr"`
 - `404 Not Found` -> `"Listing not found"` (the id is not in the Vaud data)
 - `422 Unprocessable Entity` -> `"Share link could not be resolved"` (a share
   link was recognised but did not redirect to a listing: expired code,

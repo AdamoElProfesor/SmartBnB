@@ -1,38 +1,47 @@
-const chf = new Intl.NumberFormat("de-CH", {
-  style: "currency",
-  currency: "CHF",
-  maximumFractionDigits: 0,
-});
+import { intlLocale, t } from "../i18n";
 
-/** "CHF 144" or null for missing values */
+// Intl formatters are costly to build: one per locale and options
+const formatters = new Map();
+function numberFormat(locale, options) {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  if (!formatters.has(key)) formatters.set(key, new Intl.NumberFormat(locale, options));
+  return formatters.get(key);
+}
+
+/** "CHF 144" in English, "144 CHF" in French, or null for missing values */
 export function formatCHF(value) {
   const n = Number(value);
-  return value == null || !Number.isFinite(n) ? null : chf.format(n);
+  if (value == null || !Number.isFinite(n)) return null;
+  return numberFormat(t("locale.money"), { style: "currency", currency: "CHF", maximumFractionDigits: 0 }).format(n);
 }
+
+/** 4.9 -> "4.90" in English, "4,90" in French */
+export const formatNumber = (value, digits) =>
+  numberFormat(intlLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value));
+
+/** "14 September 2026" / "14 septembre 2026" */
+export const formatDate = (d) =>
+  new Date(d).toLocaleDateString(intlLocale(), { day: "numeric", month: "long", year: "numeric" });
 
 export const isNum = (v) => v !== null && v !== "" && Number.isFinite(Number(v));
 
-const AMENITY_LABELS = {
-  WIFI: "Wi-Fi",
-  KITCHEN: "Kitchen",
-  HEATING: "Heating",
-  AC: "Air conditioning",
-  PARKING: "Parking",
-  WASHER: "Washer",
-  DRYER: "Dryer",
-  WORKSPACE: "Workspace",
-  ENTRANCE: "Private entrance",
-  HOTTUB: "Hot tub",
+export const amenityLabel = (code) => {
+  const key = `amenity.${code}`;
+  const label = t(key);
+  return label === key ? code : label;
 };
-export const amenityLabel = (code) => AMENITY_LABELS[code] || code;
 
 const ROOM_TYPES = {
-  "Entire home/apt": "entire home",
-  "Private room": "private room",
-  "Shared room": "shared room",
-  "Hotel room": "hotel room",
+  "Entire home/apt": "entire",
+  "Private room": "private",
+  "Shared room": "shared",
+  "Hotel room": "hotel",
 };
-export const roomTypeLabel = (t) => ROOM_TYPES[t] || (t ? t.toLowerCase() : "stay");
+/** "entire home" / "logement entier"; a type we do not know is shown as it comes */
+export const roomTypeLabel = (type) =>
+  ROOM_TYPES[type] ? t(`roomType.${ROOM_TYPES[type]}`) : type ? type.toLowerCase() : t("roomType.other");
+/** "an entire home" / "un logement entier", for sentences */
+export const roomTypeWithArticle = (type) => t(`roomTypeWithArticle.${ROOM_TYPES[type] ?? "other"}`);
 
 // Price scale shared by the map and its legend: vineyard green (cheap),
 // ochre, road red (expensive).

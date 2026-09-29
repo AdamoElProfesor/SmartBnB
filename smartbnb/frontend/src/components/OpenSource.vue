@@ -1,5 +1,5 @@
 <template>
-  <aside id="open-source" class="open-source" aria-label="Open source">
+  <aside id="open-source" class="open-source" :aria-label="t('openSource.label')">
     <div class="wrap os-row">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="6" cy="5" r="2.2" />
@@ -8,15 +8,17 @@
         <path d="M6 7.2v9.6M18 9.2c0 4.5-6 3.5-11 7.8" />
       </svg>
       <p>
-        <strong>SmartBnB is open source.</strong>
-        Found a bug or have an idea? Every contribution is read and answered.
-        <a :href="`${REPO}/blob/main/CONTRIBUTING.md`" target="_blank" rel="noopener">Contribute on GitHub</a>
+        <strong>{{ t("openSource.lead") }}</strong>
+        {{ t("openSource.body") }}
+        <a :href="`${REPO}/blob/main/CONTRIBUTING.md`" target="_blank" rel="noopener">{{ t("openSource.link") }}</a>
       </p>
     </div>
   </aside>
 </template>
 
 <script setup>
+import { t } from "../i18n";
+
 const REPO = "https://github.com/AdamoElProfesor/SmartBnB";
 </script>
 

@@ -1,4 +1,5 @@
 const { isValidListingId } = require("../services/url-resolver.service");
+const { SUPPORTED_LANGS, DEFAULT_LANG } = require("./ai");
 
 const SORTS = ["price_asc", "most_booked", "rating_desc", "listing_id_asc"];
 
@@ -54,4 +55,17 @@ function parseSearchQuery(query) {
   return out;
 }
 
-module.exports = { badRequest, parseListingId, parseSearchQuery };
+/**
+ * Checks the language asked for the AI analysis; English when absent
+ * @param {unknown} lang
+ * @returns {string}
+ */
+function parseLang(lang) {
+  if (lang === undefined || lang === null) return DEFAULT_LANG;
+  if (typeof lang !== "string" || !SUPPORTED_LANGS.includes(lang)) {
+    throw badRequest(`lang must be one of ${SUPPORTED_LANGS.join(", ")}`);
+  }
+  return lang;
+}
+
+module.exports = { badRequest, parseLang, parseListingId, parseSearchQuery };

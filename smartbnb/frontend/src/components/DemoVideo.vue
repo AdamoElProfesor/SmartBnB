@@ -1,11 +1,11 @@
 <template>
   <button type="button" class="demo-btn" @click="open">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9l7-4.5z" /></svg>
-    <span>Watch the demo (1 min)</span>
+    <span>{{ t("demo.watch") }}</span>
   </button>
 
   <!-- Native dialog: focus trap, Escape to close and backdrop come for free -->
-  <dialog ref="dialog" class="demo" aria-label="SmartBnB demo video" @click="closeOnBackdrop" @close="playing = false">
+  <dialog ref="dialog" class="demo" :aria-label="t('demo.dialog')" @click="closeOnBackdrop" @close="playing = false">
     <div class="demo-frame">
       <!-- The video only exists while the dialog is open, so it loads on click and stops on close -->
       <video
@@ -18,12 +18,13 @@
         preload="auto"
       ></video>
     </div>
-    <button type="button" class="demo-close" aria-label="Close video" @click="dialog.close()">×</button>
+    <button type="button" class="demo-close" :aria-label="t('demo.close')" @click="dialog.close()">×</button>
   </dialog>
 </template>
 
 <script setup>
 import { ref } from "vue";
+import { t } from "../i18n";
 
 // Served by the app itself (frontend/public/media), subtitles are burned in
 const VIDEO_URL = "/media/smartbnb-demo.mp4";

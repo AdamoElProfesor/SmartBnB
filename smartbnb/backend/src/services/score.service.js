@@ -1,7 +1,7 @@
 const repo = require("../repositories/factory");
 const urlResolver = require("./url-resolver.service");
 const { computeSmartScore } = require("../utils/score.utils");
-const { chatProsCons, analysisCacheKey, isNonEmptyAnalysis } = require("../utils/ai");
+const { chatProsCons, analysisCacheKey, isNonEmptyAnalysis, DEFAULT_LANG } = require("../utils/ai");
 
 // Analyses being generated right now, so parallel requests for the same
 // listing share one AI call instead of each spending quota
@@ -42,7 +42,7 @@ function rememberFailure(flightKey) {
  * Only non-empty analyses are stored; after a failed call the listing is not
  * sent to the AI again for FAILURE_TTL_MS.
  * A cache read or write error never fails the score: it falls back to the AI.
- * @param {{ listing: object, smartScore: number }} input
+ * @param {{ listing: object, smartScore: number, lang: string }} input
  * @returns {Promise<{ analysis: { pros: string[], cons: string[], summary: string }, cached: boolean }>}
  */
 async function getAnalysis(input) {
@@ -57,7 +57,7 @@ async function getAnalysis(input) {
     console.error("[score] analysis cache read failed:", e.message);
   }
 
-  const flightKey = `${cacheKey.listingId}|${key.dataVersion}|${key.model}`;
+  const flightKey = `${cacheKey.listingId}|${key.dataVersion}|${key.model}|${key.lang}`;
   if (inFlight.has(flightKey)) {
     return { analysis: await inFlight.get(flightKey), cached: false };
   }
@@ -86,14 +86,15 @@ async function getAnalysis(input) {
   }
 }
 
-/**
- * Compute SmartBnB score from an Airbnb URL
- * @param {string} airbnbUrl
- * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, listing?: object, analysis?: object }>}
- */
 exports._resetFailures = () => recentFailures.clear();
 
-exports.computeFromUrl = async (airbnbUrl) => {
+/**
+ * Compute SmartBnB score from an Airbnb URL, with the AI analysis in the given language
+ * @param {string} airbnbUrl
+ * @param {{ lang?: string }} [options]
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, listing?: object, analysis?: object }>}
+ */
+exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
   const { id, shortLink } = await urlResolver.resolveListingId(String(airbnbUrl || ""));
   if (!id) return { ok: false, error: shortLink ? "Share link could not be resolved" : "Invalid Airbnb URL" };
 
@@ -125,7 +126,7 @@ exports.computeFromUrl = async (airbnbUrl) => {
     missing_amenities: listing.missing_amenities || [],
   };
 
-  const { analysis, cached } = await getAnalysis({ listing, smartScore: score.score });
+  const { analysis, cached } = await getAnalysis({ listing, smartScore: score.score, lang });
 
   return {
     ok: true,

@@ -167,15 +167,17 @@ CREATE INDEX IF NOT EXISTS price_observations_listing_idx
 -- -----------------------------------------------------------------
 -- Cache of the AI pros/cons analysis, filled by POST /api/score.
 -- data_version is a hash of the data sent to the model, so a new scrape
--- or price gives a new row instead of a stale analysis.
+-- or price gives a new row instead of a stale analysis. lang is the
+-- language the analysis is written in (en, fr): each has its own row.
 -- -----------------------------------------------------------------
 CREATE TABLE public.ai_analyses (
   listing_id    bigint      NOT NULL,
   data_version  text        NOT NULL,
   model         text        NOT NULL,
+  lang          text        NOT NULL DEFAULT 'en',
   analysis      jsonb       NOT NULL,
   created_at    timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (listing_id, data_version, model)
+  PRIMARY KEY (listing_id, data_version, model, lang)
 );
 
 -- -----------------------------------------------------------------

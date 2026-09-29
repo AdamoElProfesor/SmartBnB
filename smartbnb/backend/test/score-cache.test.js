@@ -29,7 +29,7 @@ const listing = {
   amenities_max: 52,
 };
 const analysis = { pros: ["Prix bas"], cons: ["Pas de jacuzzi"], summary: "Bon plan." };
-const KEY = { model: "@cf/openai/gpt-oss-20b", dataVersion: "sha256:abc" };
+const KEY = { model: "@cf/openai/gpt-oss-20b", dataVersion: "sha256:abc", lang: "en" };
 
 describe("score.service analysis cache", () => {
   beforeEach(() => {
@@ -58,6 +58,24 @@ describe("score.service analysis cache", () => {
     expect(out.analysis_cached).toBe(false);
     expect(ai.chatProsCons).toHaveBeenCalledTimes(1);
     expect(repo.aiAnalyses.save).toHaveBeenCalledWith({ listingId: "53584592", ...KEY, analysis });
+  });
+
+  test("the analysis is asked and cached in the requested language", async () => {
+    const french = { ...KEY, lang: "fr" };
+    ai.analysisCacheKey.mockReturnValue(french);
+    repo.aiAnalyses.get.mockResolvedValue(null);
+    ai.chatProsCons.mockResolvedValue(analysis);
+    await service.computeFromUrl("53584592", { lang: "fr" });
+    expect(ai.analysisCacheKey).toHaveBeenCalledWith(expect.objectContaining({ lang: "fr" }));
+    expect(ai.chatProsCons).toHaveBeenCalledWith(expect.objectContaining({ lang: "fr" }));
+    expect(repo.aiAnalyses.get).toHaveBeenCalledWith({ listingId: "53584592", ...french });
+    expect(repo.aiAnalyses.save).toHaveBeenCalledWith({ listingId: "53584592", ...french, analysis });
+  });
+
+  test("the language defaults to English", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(analysis);
+    await service.computeFromUrl("53584592");
+    expect(ai.analysisCacheKey).toHaveBeenCalledWith(expect.objectContaining({ lang: "en" }));
   });
 
   test("an empty analysis is not stored", async () => {
