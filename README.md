@@ -1,4 +1,4 @@
-<h1>
+<h1 align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
     <img src="docs/brand/logo.svg" alt="SmartBnB" width="300">
