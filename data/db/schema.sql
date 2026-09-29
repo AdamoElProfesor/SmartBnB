@@ -7,6 +7,7 @@
 
 DROP TABLE IF EXISTS
   public.ai_analyses,
+  public.listing_activity,
   public.price_trends,
   public.current_prices,
   public.neighbourhood_stats,
@@ -103,7 +104,18 @@ CREATE INDEX airbnb_points_total_idx
 -- Pre-computed data: the dbt marts of data/transform, published here by
 -- data/db/pipeline.py at each run
 -- -----------------------------------------------------------------
--- Latest valid price per listing (some scrapes have no usable prices)
+-- Lifetime of each listing: active = in one of the last 2 scrapes (the
+-- active_scrapes var of data/transform). The site only scores active listings.
+CREATE TABLE public.listing_activity (
+  listing_id      bigint PRIMARY KEY REFERENCES public.airbnb_vaud (id),
+  first_seen      date    NOT NULL,
+  last_seen       date    NOT NULL,
+  last_scrape_id  bigint  NOT NULL,
+  scrapes_seen    integer NOT NULL,
+  is_active       boolean NOT NULL
+);
+
+-- Latest valid price per active listing (some scrapes have no usable prices)
 CREATE TABLE public.current_prices (
   listing_id  bigint PRIMARY KEY REFERENCES public.airbnb_vaud (id),
   price       double precision NOT NULL,
@@ -233,6 +245,7 @@ ALTER TABLE public.airbnb_points                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_room_type_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_stats           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.listing_activity              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_trends                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
@@ -275,7 +288,7 @@ BEGIN
     GRANT SELECT ON ALL TABLES IN SCHEMA public TO smartbnb_loader;
     GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
       public.airbnb_vaud, public.airbnb_snapshots, public.airbnb_amenities,
-      public.airbnb_points, public.current_prices,
+      public.airbnb_points, public.current_prices, public.listing_activity,
       public.neighbourhood_room_type_stats, public.neighbourhood_stats,
       public.price_trends
       TO smartbnb_loader;
@@ -287,7 +300,7 @@ BEGIN
         'CREATE POLICY smartbnb_loader_read ON public.%I FOR SELECT TO smartbnb_loader USING (true)', t);
     END LOOP;
     FOREACH t IN ARRAY ARRAY['airbnb_vaud', 'airbnb_snapshots', 'airbnb_amenities',
-                             'airbnb_points', 'current_prices', 'neighbourhood_room_type_stats',
+                             'airbnb_points', 'current_prices', 'listing_activity', 'neighbourhood_room_type_stats',
                              'neighbourhood_stats', 'price_trends', 'etl_runs'] LOOP
       EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_write ON public.%I', t);
       EXECUTE format(

@@ -80,6 +80,18 @@ def main():
                     WHERE s.price < 5""") == 0,
                "no price of the broken scrape is current")
         expect(q("SELECT count(*) FROM public.price_trends") > 0, "price trends are computed")
+        expect(q("""SELECT count(*) FROM public.listing_activity
+                    WHERE NOT is_active AND listing_id BETWEEN 2301 AND 2400""") == 100
+               and q("SELECT count(*) FROM public.listing_activity WHERE NOT is_active") == 100,
+               "exactly the listings missing from the last two scrapes have left")
+        expect(q("""SELECT count(*) FROM public.current_prices c
+                    JOIN public.listing_activity a USING (listing_id) WHERE NOT a.is_active""") == 0,
+               "a listing that left has no current price")
+        expect(q("SELECT sum(n_listings) FROM public.neighbourhood_stats")
+               == q("""SELECT count(*) FROM public.listing_activity a
+                       JOIN public.airbnb_vaud v ON v.id = a.listing_id
+                       WHERE a.is_active AND v.neighbourhood_cleansed IS NOT NULL"""),
+               "the review baselines count every active listing once, and only them")
         last_runs = conn.execute("SELECT status FROM public.etl_runs ORDER BY id DESC LIMIT 3").fetchall()
         expect(last_runs == [("success",)] * 3, "the three runs are logged as success")
 

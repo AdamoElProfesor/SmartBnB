@@ -92,7 +92,7 @@ exports._resetFailures = () => recentFailures.clear();
  * Compute SmartBnB score from an Airbnb URL, with the AI analysis in the given language
  * @param {string} airbnbUrl
  * @param {{ lang?: string }} [options]
- * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, smart_score?: number, listing?: object, analysis?: object }>}
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, active?: boolean, last_seen?: string|null, smart_score?: number|null, listing?: object, analysis?: object|null }>}
  */
 exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
   const { id, shortLink } = await urlResolver.resolveListingId(String(airbnbUrl || ""));
@@ -101,7 +101,10 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
   const listing = await repo.listings.getById(String(id));
   if (!listing) return { ok: false, error: "Listing not found" };
 
-  const score = computeSmartScore(listing);
+  // A listing no longer on Airbnb cannot be booked: it is not scored and not
+  // sent to the AI. No activity row (not computed yet) counts as active.
+  const active = listing.is_active !== false;
+  const lifetime = { active, last_seen: listing.last_seen ?? null };
 
   const listingSummary = {
     id: listing.id,
@@ -126,11 +129,25 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
     missing_amenities: listing.missing_amenities || [],
   };
 
+  if (!active) {
+    return {
+      ok: true,
+      listing_id: String(id),
+      ...lifetime,
+      smart_score: null,
+      listing: listingSummary,
+      analysis: null,
+      analysis_cached: false,
+    };
+  }
+
+  const score = computeSmartScore(listing);
   const { analysis, cached } = await getAnalysis({ listing, smartScore: score.score, lang });
 
   return {
     ok: true,
     listing_id: String(id),
+    ...lifetime,
     smart_score: score.score,
     listing: listingSummary,
     analysis,

@@ -1,5 +1,6 @@
--- Latest plausible price of each listing, from whichever source saw it last,
--- if seen in the price_window_months before the newest price. On the rare
+-- Latest plausible price of each active listing, from whichever source saw
+-- it last, if seen in the price_window_months before the newest price. A
+-- listing that left Airbnb has no current price. On the rare
 -- day two sources saw the same listing, the Inside Airbnb price wins, so
 -- the result does not depend on the order of the rows.
 with prices as (
@@ -12,7 +13,7 @@ select distinct on (p.listing_id)
     p.price_date,
     p.source
 from prices as p
-join {{ ref('stg_listings') }} as l on l.listing_id = p.listing_id
+join {{ ref('int_active_listings') }} as l on l.listing_id = p.listing_id
 where p.price_date >= (select max(price_date) from prices)
                       - make_interval(months => {{ var('price_window_months') }})
 order by p.listing_id, p.price_date desc, p.source

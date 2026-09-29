@@ -20,12 +20,12 @@ describe("listings repository search()", () => {
     );
   });
 
-  test("reads only the latest scrape instead of ranking the whole history", async () => {
+  test("reads the latest snapshot of the active listings instead of ranking the whole history", async () => {
     await repo.search({});
-    const [sql] = all.mock.calls[0];
+    const sql = all.mock.calls[0][0].replace(/\s+/g, " ");
     expect(sql).not.toMatch(/ROW_NUMBER/);
-    expect(sql).toMatch(/SELECT MAX\(scrape_id\) AS scrape_id FROM public\.airbnb_snapshots/);
-    expect(sql).toMatch(/JOIN last_scrape ls ON ls\.scrape_id = s\.scrape_id/);
+    expect(sql).toContain("FROM public.listing_activity a JOIN public.airbnb_snapshots s");
+    expect(sql).toContain("s.scrape_id = a.last_scrape_id WHERE a.is_active");
   });
 
   test("returns the total number of reviews for each listing", async () => {

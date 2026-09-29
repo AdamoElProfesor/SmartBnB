@@ -5,7 +5,8 @@ reach this public one). Deterministic: the same call writes the same files.
 Four monthly scrapes, dated from today so the freshness checks pass, with
 the traps of the real data: a scrape whose prices are all broken (below
 1 CHF), isolated prices below 5 CHF or above 5000 CHF, listings that join
-later and listings that leave before the latest scrape.
+later, listings missing from the latest scrape only (still active) and
+listings missing from the last two (left Airbnb: ids 2301 to 2400).
 
   python tests/fixture.py <directory>
 """
@@ -84,7 +85,9 @@ def in_scrape(listing_id, days_ago):
     if listing_id > 2400 and days_ago > 150:
         return False  # joined later
     if listing_id <= 150 and days_ago == 5:
-        return False  # left before the latest scrape
+        return False  # missing from the latest scrape only: still active
+    if 2300 < listing_id <= 2400 and days_ago <= 35:
+        return False  # missing from the last two scrapes: left Airbnb
     return True
 
 

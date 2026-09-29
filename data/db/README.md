@@ -39,7 +39,8 @@ price_observations ───────────────────┐ 
 | `airbnb_points` | Amenities score per listing (sum of weights) |
 | `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type |
 | `neighbourhood_stats` | Review baselines per neighbourhood: overall rating, reviews per month, sample sizes (see [Metrics](#metrics)) |
-| `current_prices` | Latest plausible price per listing (last 6 months) |
+| `listing_activity` | Lifetime of each listing (first and last seen) and whether it is still on Airbnb (see [Metrics](#metrics)) |
+| `current_prices` | Latest plausible price per active listing (last 6 months) |
 | `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
 | `etl_runs` | One row per run of `pipeline.py`: metrics and quality check results |
 | `ai_analyses` | Cache of the AI analysis per listing, data version, model and language (filled by the backend) |
@@ -126,10 +127,23 @@ price per listing. These rules are the `vars` of
 
 What the score compares a listing with, and how each number is built. A
 baseline is always measured the same way as the listing value it is compared
-with, and counts each listing once.
+with, counts each listing once, and only counts the listings still on Airbnb.
+
+**Active listings.** Of the 9,470 listings seen since 2024, about 5,500 are
+still on Airbnb. One rule, computed once in `listing_activity`, decides which:
+in one of the last 2 scrapes. The score, the price map, the Top 10 and every
+statistic of the current market use it; a listing that left is not scored.
+Requiring the latest scrape only would be exact, but a single partial file
+(2026-01-15 had 3,851 rows instead of about 5,500) would then mark thousands
+of real listings as gone; with 2 scrapes, a listing that left stays active
+one more month at most. The audit warns when more than 10% of the active
+listings are missing from the latest scrape, the sign of a partial file.
+`price_trends` is the exception: it compares past scrapes, so it counts the
+listings active at the time.
 
 | Metric | Definition | Grain | Window | Empty values |
 | --- | --- | --- | --- | --- |
+| `listing_activity.is_active` | The listing is in one of the last 2 scrapes (`active_scrapes`), so presumably still on Airbnb | one row per listing ever seen | the last 2 scrapes | never empty |
 | `current_prices.price` | Newest nightly price of the listing, 20 to 5,000 CHF | one row per listing | seen in the 6 months before the newest price | a price outside the range is skipped, the listing keeps its previous one |
 | `current_prices.source` | Which price definition it comes from: `insideairbnb` (price column of the scrape), `scrape_search` (price scraper, a Friday, 2 nights, about 4 weeks ahead), `scrape_listing` (price scraper, next free stay of the minimum length) | per price | | never empty |
 | `neighbourhood_room_type_stats.median_price`, `avg_price` | Median and mean of `current_prices.price` per neighbourhood and room type | one price per listing | prices of the last 3 months | listings without a current price are left out |
@@ -247,6 +261,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-29-ai-analyses-lang.sql` | `ai_analyses.lang` in the primary key: one cached analysis per language |
 | `2026-09-30-build-schema.sql` | `build` schema for the pipeline (the loader may create tables there), legacy `raw_airbnb_vaud` dropped |
 | `2026-09-30-baseline-columns.sql` | Expand step of #49: `neighbourhood_stats.avg_rating`, `n_listings`, `n_rated_listings` and `current_prices.source` |
+| `2026-09-30-listing-activity.sql` | `listing_activity` table (#47), with its row level security, grants and policies |
 | `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
 
 A column that changes name goes through **expand / contract**, so the site

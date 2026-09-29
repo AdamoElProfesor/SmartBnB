@@ -1,4 +1,4 @@
--- Review baselines per neighbourhood, one row per listing (its latest
+-- Review baselines per neighbourhood, one row per active listing (its latest
 -- snapshot of the stats window), with the same metrics as the listing side
 -- of the score:
 --   avg_rating             the overall rating (review_scores_rating), over
@@ -13,7 +13,7 @@ with listings as (
         -- has no review; any other empty value stays unknown
         case when s.number_of_reviews = 0 then 0 else s.reviews_per_month end as reviews_per_month_filled
     from {{ ref('int_listing_latest_snapshots') }} as s
-    join {{ ref('stg_listings') }} as l on l.listing_id = s.listing_id
+    join {{ ref('int_active_listings') }} as l on l.listing_id = s.listing_id
     where l.neighbourhood is not null
 )
 

@@ -25,6 +25,14 @@ models:
               arguments:
                 values: ["insideairbnb", "scrape_search", "scrape_listing"]
 
+  - name: int_active_listings
+    description: >
+      The listings still on Airbnb (listing_activity.is_active), with their
+      static data: the population of every statistic of the current market.
+    columns:
+      - name: listing_id
+        data_tests: [unique, not_null]
+
   - name: int_listing_latest_snapshots
     description: >
       Each listing's latest snapshot among the scrapes of the last

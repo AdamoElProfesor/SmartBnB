@@ -78,6 +78,11 @@ METRICS_SQL = {
         WHERE v.id IN (SELECT listing_id FROM public.airbnb_snapshots
                        WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots))""",
     "review_stat_neighbourhoods": "SELECT COUNT(*) FROM public.neighbourhood_stats",
+    # Active listings (listing_activity) missing from the latest scrape: about
+    # 4% normally (those that left last month); much more means a partial file
+    "active_not_in_latest_share": """
+        SELECT AVG((a.last_scrape_id <> (SELECT MAX(scrape_id) FROM public.airbnb_snapshots))::int)::float
+        FROM public.listing_activity a WHERE a.is_active""",
     "amenity_scores": "SELECT COUNT(*) FROM public.airbnb_points",
 }
 
@@ -163,6 +168,9 @@ def evaluate(m, previous=None):
           f"{outside:.0f} active listings outside canton Vaud (max 1%)")
     for name in ("price_stat_groups", "review_stat_neighbourhoods", "amenity_scores"):
         check(name, "error", (m.get(name) or 0) > 0, f"{m.get(name) or 0:.0f} rows (min 1)")
+    check("active_not_in_latest_share", "warning", (m.get("active_not_in_latest_share") or 0) <= 0.1,
+          f"{ratio('active_not_in_latest_share')} of active listings are missing from the latest "
+          f"scrape (max 10%, more suggests a partial file)")
     check("small_group_share", "warning", (m.get("small_group_share") or 0) <= 0.25,
           f"{ratio('small_group_share')} of active listings compared with fewer than "
           f"5 similar listings (max 25%)")
