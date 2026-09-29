@@ -132,7 +132,7 @@ exports.getById = async (
       n.median_price,
       n.avg_price,
       n.count_airbnb,
-      ns.avg_reviews           AS neighborhood_avg_rating,
+      ns.avg_rating            AS neighborhood_avg_rating,
       ns.avg_reviews_per_month AS neighborhood_avg_reviews_per_month,
 
       a.amenities,
