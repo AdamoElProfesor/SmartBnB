@@ -22,9 +22,6 @@ with listings as (
 select
     neighbourhood,
     avg(review_scores_rating::numeric)::double precision as avg_rating,
-    -- Former name of avg_rating, kept until the backend reads avg_rating
-    -- everywhere (expand / contract), then dropped
-    avg(review_scores_rating::numeric)::double precision as avg_reviews,
     avg(reviews_per_month_filled::numeric)::double precision as avg_reviews_per_month,
     count(*) as n_listings,
     count(review_scores_rating) as n_rated_listings

@@ -247,6 +247,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-29-ai-analyses-lang.sql` | `ai_analyses.lang` in the primary key: one cached analysis per language |
 | `2026-09-30-build-schema.sql` | `build` schema for the pipeline (the loader may create tables there), legacy `raw_airbnb_vaud` dropped |
 | `2026-09-30-baseline-columns.sql` | Expand step of #49: `neighbourhood_stats.avg_rating`, `n_listings`, `n_rated_listings` and `current_prices.source` |
+| `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
 
 A column that changes name goes through **expand / contract**, so the site
 keeps working at every step: the expand migration adds the new column, the

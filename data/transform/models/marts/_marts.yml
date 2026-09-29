@@ -102,8 +102,6 @@ models:
         data_tests:
           - in_range:
               arguments: {min_value: 0, max_value: 5}
-      - name: avg_reviews
-        description: Former name of avg_rating, same value; dropped once nothing reads it.
       - name: avg_reviews_per_month
         description: >
           Mean reviews_per_month, a listing with no review counting as 0 (as
