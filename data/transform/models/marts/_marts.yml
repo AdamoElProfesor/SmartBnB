@@ -29,6 +29,15 @@ models:
       - name: price_date
         description: Day the price was seen.
         data_tests: [not_null]
+      - name: source
+        description: >
+          Which of the three price definitions the price comes from:
+          insideairbnb, scrape_search or scrape_listing (see int_listing_prices).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["insideairbnb", "scrape_search", "scrape_listing"]
 
   - name: airbnb_points
     description: Amenities score of each listing, the sum of the weights of its amenity categories.
@@ -79,18 +88,40 @@ models:
 
   - name: neighbourhood_stats
     description: >
-      Review baselines per neighbourhood over the scrapes of the last
-      stats_window_months: the score compares a listing's reviews with them.
+      Review baselines per neighbourhood, one row per listing seen in the
+      last stats_window_months (its latest snapshot), measured the same way
+      as the listing they are compared with.
     columns:
       - name: neighbourhood
         data_tests: [unique, not_null]
-      - name: avg_reviews
-        description: Mean over snapshots of the average of the 7 review scores (0 to 5).
+      - name: avg_rating
+        description: >
+          Mean overall rating (review_scores_rating, 1 to 5) of the listings
+          that have one; a listing without review has no rating and is left
+          out. The site shows it next to the listing's overall rating.
         data_tests:
           - in_range:
               arguments: {min_value: 0, max_value: 5}
+      - name: avg_reviews
+        description: Former name of avg_rating, same value; dropped once nothing reads it.
       - name: avg_reviews_per_month
-        description: Mean reviews_per_month of the neighbourhood's snapshots.
+        description: >
+          Mean reviews_per_month, a listing with no review counting as 0 (as
+          on the listing side of the score). The baseline of the score's
+          reviews part.
+        data_tests:
+          - not_null
+          - in_range:
+              arguments: {min_value: 0, max_value: 1000}
+      - name: n_listings
+        description: Number of listings behind avg_reviews_per_month (the sample size).
+        data_tests:
+          - not_null
+          - in_range:
+              arguments: {min_value: 1, max_value: 100000}
+      - name: n_rated_listings
+        description: Number of listings behind avg_rating (those with a rating).
+        data_tests: [not_null]
 
   - name: price_trends
     description: >
@@ -115,20 +146,43 @@ models:
         description: Change in percent, null when start_median is 0.
 
 unit_tests:
+  - name: a_listing_without_review_counts_as_zero
+    description: >
+      A listing with no review lowers the reviews baseline as a 0 (the value
+      its own reviews part uses) and is left out of the rating baseline;
+      listings without a neighbourhood are left out of both.
+    model: neighbourhood_stats
+    given:
+      - input: ref('int_listing_latest_snapshots')
+        rows:
+          - {listing_id: 1, number_of_reviews: 50, reviews_per_month: 2.0, review_scores_rating: 4.8}
+          - {listing_id: 2, number_of_reviews: 0, reviews_per_month: null, review_scores_rating: null}
+          - {listing_id: 3, number_of_reviews: 10, reviews_per_month: 1.0, review_scores_rating: 4.0}
+      - input: ref('stg_listings')
+        rows:
+          - {listing_id: 1, neighbourhood: "Lausanne"}
+          - {listing_id: 2, neighbourhood: "Lausanne"}
+          - {listing_id: 3, neighbourhood: null}
+    expect:
+      rows:
+        - {neighbourhood: "Lausanne", avg_rating: 4.8, avg_reviews_per_month: 1.0, n_listings: 2, n_rated_listings: 1}
+
   - name: current_price_is_the_latest_in_the_window
     description: >
-      A listing gets its newest price; a price older than price_window_months
-      before the newest price overall is too old; a listing we do not know
+      A listing gets its newest price and its source; a price older than
+      price_window_months before the newest price overall is too old; on a
+      same-day tie the Inside Airbnb price wins; a listing we do not know
       gets none.
     model: current_prices
     given:
       - input: ref('int_listing_prices')
         rows:
-          - {listing_id: 1, price: 100, price_date: "2026-01-01"}
-          - {listing_id: 1, price: 150, price_date: "2026-09-01"}
-          - {listing_id: 2, price: 90, price_date: "2026-01-15"}
-          - {listing_id: 3, price: 80, price_date: "2026-08-01"}
-          - {listing_id: 4, price: 70, price_date: "2026-09-01"}
+          - {listing_id: 1, price: 100, price_date: "2026-01-01", source: insideairbnb}
+          - {listing_id: 1, price: 150, price_date: "2026-09-01", source: scrape_search}
+          - {listing_id: 2, price: 90, price_date: "2026-01-15", source: insideairbnb}
+          - {listing_id: 3, price: 80, price_date: "2026-08-01", source: insideairbnb}
+          - {listing_id: 3, price: 85, price_date: "2026-08-01", source: scrape_listing}
+          - {listing_id: 4, price: 70, price_date: "2026-09-01", source: insideairbnb}
       - input: ref('stg_listings')
         rows:
           - {listing_id: 1}
@@ -136,5 +190,5 @@ unit_tests:
           - {listing_id: 3}
     expect:
       rows:
-        - {listing_id: 1, price: 150, price_date: "2026-09-01"}
-        - {listing_id: 3, price: 80, price_date: "2026-08-01"}
+        - {listing_id: 1, price: 150, price_date: "2026-09-01", source: scrape_search}
+        - {listing_id: 3, price: 80, price_date: "2026-08-01", source: insideairbnb}

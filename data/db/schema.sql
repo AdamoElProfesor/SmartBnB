@@ -107,7 +107,9 @@ CREATE INDEX airbnb_points_total_idx
 CREATE TABLE public.current_prices (
   listing_id  bigint PRIMARY KEY REFERENCES public.airbnb_vaud (id),
   price       double precision NOT NULL,
-  price_date  date NOT NULL
+  price_date  date NOT NULL,
+  -- insideairbnb, scrape_search or scrape_listing (data/transform int_listing_prices)
+  source      text
 );
 
 CREATE TABLE public.neighbourhood_room_type_stats (
@@ -119,10 +121,15 @@ CREATE TABLE public.neighbourhood_room_type_stats (
   PRIMARY KEY (neighbourhood, room_type)
 );
 
+-- One row per listing of the stats window behind each baseline (see the
+-- metrics in data/db/README.md)
 CREATE TABLE public.neighbourhood_stats (
   neighbourhood          text PRIMARY KEY,
-  avg_reviews            double precision,  -- mean review score (0-5)
-  avg_reviews_per_month  double precision   -- mean reviews_per_month
+  avg_reviews            double precision,  -- former name of avg_rating, being dropped
+  avg_reviews_per_month  double precision,  -- mean reviews_per_month, no review counting as 0
+  avg_rating             double precision,  -- mean overall rating of the rated listings (1-5)
+  n_listings             integer,           -- listings behind avg_reviews_per_month
+  n_rated_listings       integer            -- listings behind avg_rating
 );
 
 -- Median price change per region over the last 12 months of priced scrapes

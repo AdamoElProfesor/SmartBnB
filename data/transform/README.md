@@ -15,7 +15,7 @@ reach the site only once every test and the audit have passed.
 sources          raw.airbnb_vaud, raw.airbnb_snapshots, raw.airbnb_amenities   (build schema, from load_data.py)
                  app.price_observations, app.amenity_points                     (public schema, read only)
 staging          stg_listings, stg_snapshots, stg_amenities, stg_price_observations      views
-intermediate     int_listing_prices                                                       view
+intermediate     int_listing_prices, int_listing_latest_snapshots                         views
 marts            current_prices, airbnb_points, neighbourhood_room_type_stats,            tables
                  neighbourhood_stats, price_trends
 ```
@@ -24,9 +24,12 @@ marts            current_prices, airbnb_points, neighbourhood_room_type_stats,  
   holds the price validity rule (a scrape whose median price is below 5 CHF
   shipped a broken price column, and a single price below 5 CHF is a parsing
   error).
-- **Intermediate**: `int_listing_prices` puts the two price sources together
-  (Inside Airbnb scrapes and the price scraper), with a `source` column, and
-  keeps the plausible nightly prices (20 to 5,000 CHF).
+- **Intermediate**: `int_listing_prices` puts the three price definitions
+  together (the Inside Airbnb scrapes and the two passes of the price
+  scraper), with a `source` column that `current_prices` keeps, and keeps
+  the plausible nightly prices (20 to 5,000 CHF). `int_listing_latest_snapshots`
+  keeps each listing's latest snapshot of the stats window, so a listing
+  counts once in the neighbourhood baselines.
 - **Marts**: the tables the backend reads, with the names and columns of the
   public tables, so the API did not change.
 
@@ -47,8 +50,13 @@ skips the models downstream of a failure.
   per scrape.
 - A singular test (`tests/price_trends_cover_a_period.sql`).
 - Unit tests of the business rules, on fixed input rows (in the model YAML
-  files): broken scrape prices are dropped, and the current price is the
-  newest one in the window.
+  files): broken scrape prices are dropped, the current price is the newest
+  one in the window, a listing counts once in the stats window, and a
+  listing without review counts as 0 in the reviews baseline.
+
+Staging casts prices and scores to `double precision`: the production table
+stores some of them as `real`, and the unit tests caught that the results
+depended on it.
 
 ## Run it
 
