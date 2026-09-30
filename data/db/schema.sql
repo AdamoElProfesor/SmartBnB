@@ -144,15 +144,15 @@ CREATE TABLE public.neighbourhood_stats (
   n_rated_listings       integer NOT NULL   -- listings behind avg_rating
 );
 
--- Median price change per region over the last 12 months of priced scrapes
--- (GET /api/histogram): first priced scrape of the window against the latest
+-- Median price change per region of the listings priced at both dates
+-- (GET /api/histogram): first priced scrape of the last 12 months against
+-- the latest, never across a change of price definition by Inside Airbnb
 CREATE TABLE public.price_trends (
-  region        text PRIMARY KEY,
-  start_date    date NOT NULL,
-  end_date      date NOT NULL,
-  start_median  double precision NOT NULL,
-  end_median    double precision NOT NULL,
-  pct           double precision   -- NULL when start_median is 0
+  region      text PRIMARY KEY,
+  start_date  date NOT NULL,
+  end_date    date NOT NULL,
+  n_listings  integer NOT NULL,           -- listings priced at both dates
+  pct         double precision NOT NULL   -- median of their price changes, in percent
 );
 
 -- -----------------------------------------------------------------

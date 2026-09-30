@@ -181,8 +181,14 @@
     }
   },
   "trends": {
-    "title": "Les prix cette année",
-    "intro": "Évolution du prix médian par nuit de chaque district sur les 12 derniers mois de données.",
+    "title": "L'évolution des prix",
+    "intro": "Variation médiane du prix par nuit des mêmes annonces, par district.",
+    "period": "Du {start} au {end}.",
+    "listings": {
+      "one": "{count} annonce",
+      "other": "{count} annonces"
+    },
+    "note": "Seules les annonces avec un prix aux deux dates comptent, et la comparaison ne franchit jamais un changement dans la façon dont Inside Airbnb publie les prix.",
     "loading": "Chargement des tendances…",
     "error": "Les tendances de prix n'ont pas pu se charger. Rechargez la page pour réessayer.",
     "empty": "Aucune tendance de prix n'est encore disponible.",

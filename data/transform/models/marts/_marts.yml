@@ -123,25 +123,35 @@ models:
 
   - name: price_trends
     description: >
-      "Prices this year" on the site: per district, the median price of the
-      first priced scrape of the last trend_window_months against the latest
-      priced scrape. Empty when a single scrape has prices.
+      "Price trends" on the site: per district, the median price change of
+      the listings priced both in the first priced scrape of the last
+      trend_window_months and in the latest one. A change of price
+      definition by Inside Airbnb (the same listings moving by more than
+      price_break_ratio in one step) starts a new series, and the trend
+      never compares across it. Districts with fewer than min_trend_listings
+      such listings are left out. Empty when the current series has a
+      single priced scrape.
     columns:
       - name: region
         description: District (Inside Airbnb neighbourhood_group_cleansed), or Unknown.
         data_tests: [unique, not_null]
       - name: start_date
+        description: Day of the first scrape compared.
         data_tests: [not_null]
       - name: end_date
+        description: Day of the latest scrape compared.
         data_tests: [not_null]
-      - name: start_median
-        description: Median nightly price in CHF of the first scrape.
-        data_tests: [not_null]
-      - name: end_median
-        description: Median nightly price in CHF of the latest scrape.
-        data_tests: [not_null]
+      - name: n_listings
+        description: Listings priced at both dates, behind pct (the sample size).
+        data_tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: "{{ var('min_trend_listings') }}"
+                max_value: 100000
       - name: pct
-        description: Change in percent, null when start_median is 0.
+        description: Median of the listings' own price changes, in percent.
+        data_tests: [not_null]
 
   - name: listing_activity
     description: >
@@ -176,6 +186,47 @@ models:
         data_tests: [not_null]
 
 unit_tests:
+  - name: price_trends_do_not_cross_a_price_definition_change
+    description: >
+      Between the first two scrapes every price goes up by 60%: Inside
+      Airbnb changed its price definition, so the trend starts at the second
+      scrape. It is the median of the changes of the listings priced at both
+      dates (0%, +12.5%, +25%): a listing without a price at the start or
+      that joined later does not count, and a district with fewer than
+      min_trend_listings listings is left out.
+    model: price_trends
+    overrides:
+      vars: {min_trend_listings: 2}
+    given:
+      - input: ref('stg_snapshots')
+        rows:
+          - {listing_id: 1, scrape_id: 100, last_scraped: "2025-11-01", price: 100}
+          - {listing_id: 1, scrape_id: 200, last_scraped: "2026-03-16", price: 160}
+          - {listing_id: 1, scrape_id: 300, last_scraped: "2026-09-14", price: 160}
+          - {listing_id: 2, scrape_id: 100, last_scraped: "2025-11-01", price: 100}
+          - {listing_id: 2, scrape_id: 200, last_scraped: "2026-03-16", price: 160}
+          - {listing_id: 2, scrape_id: 300, last_scraped: "2026-09-14", price: 180}
+          - {listing_id: 3, scrape_id: 100, last_scraped: "2025-11-01", price: 100}
+          - {listing_id: 3, scrape_id: 200, last_scraped: "2026-03-16", price: 160}
+          - {listing_id: 3, scrape_id: 300, last_scraped: "2026-09-14", price: 200}
+          - {listing_id: 4, scrape_id: 200, last_scraped: "2026-03-16", price: null}
+          - {listing_id: 4, scrape_id: 300, last_scraped: "2026-09-14", price: 900}
+          - {listing_id: 5, scrape_id: 300, last_scraped: "2026-09-14", price: 20}
+          - {listing_id: 6, scrape_id: 100, last_scraped: "2025-11-01", price: 100}
+          - {listing_id: 6, scrape_id: 200, last_scraped: "2026-03-16", price: 160}
+          - {listing_id: 6, scrape_id: 300, last_scraped: "2026-09-14", price: 170}
+      - input: ref('stg_listings')
+        rows:
+          - {listing_id: 1, neighbourhood_group: "Lausanne"}
+          - {listing_id: 2, neighbourhood_group: "Lausanne"}
+          - {listing_id: 3, neighbourhood_group: "Lausanne"}
+          - {listing_id: 4, neighbourhood_group: "Lausanne"}
+          - {listing_id: 5, neighbourhood_group: "Lausanne"}
+          - {listing_id: 6, neighbourhood_group: "Nyon"}
+    expect:
+      rows:
+        - {region: "Lausanne", start_date: "2026-03-16", end_date: "2026-09-14", n_listings: 3, pct: 12.5}
+
   - name: a_listing_is_active_until_it_misses_two_scrapes
     description: >
       Three scrapes, the latest one partial. A listing in every scrape is

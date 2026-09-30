@@ -53,9 +53,10 @@ skips the models downstream of a failure.
 - A singular test (`tests/price_trends_cover_a_period.sql`).
 - Unit tests of the business rules, on fixed input rows (in the model YAML
   files): broken scrape prices are dropped, the current price is the newest
-  one in the window, a listing counts once in the stats window, a listing
-  without review counts as 0 in the reviews baseline, and a listing stays
-  active through one partial scrape but not two missed ones.
+  one in the window, price trends never cross a change of price definition,
+  a listing counts once in the stats window, a listing without review counts
+  as 0 in the reviews baseline, and a listing stays active through one
+  partial scrape but not two missed ones.
 
 Staging casts prices and scores to `double precision`: the production table
 stores some of them as `real`, and the unit tests caught that the results

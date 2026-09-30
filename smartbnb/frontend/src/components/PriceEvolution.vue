@@ -3,7 +3,10 @@
     <div class="wrap">
       <div class="section-head">
         <h2>{{ t("trends.title") }}</h2>
-        <p>{{ t("trends.intro") }}</p>
+        <p>
+          {{ t("trends.intro") }}
+          <template v-if="period">{{ t("trends.period", period) }}</template>
+        </p>
       </div>
 
       <p v-if="loading" class="state">{{ t("trends.loading") }}</p>
@@ -12,7 +15,10 @@
 
       <ul v-else class="bars" :style="{ '--zero': zeroPos + '%' }">
         <li v-for="(r, i) in rows" :key="r.label ?? i">
-          <span class="region">{{ r.label ?? t("trends.unknown") }}</span>
+          <span class="region">
+            {{ r.label ?? t("trends.unknown") }}
+            <small v-if="r.count" class="count">{{ t("trends.listings", { count: r.count }) }}</small>
+          </span>
           <span class="track">
             <span
               class="bar"
@@ -23,6 +29,7 @@
           <span class="value" :class="r.value < 0 ? 'down' : 'up'">{{ formatPct(r.value) }}</span>
         </li>
       </ul>
+      <p v-if="rows.length" class="note">{{ t("trends.note") }}</p>
     </div>
   </section>
 </template>
@@ -31,19 +38,24 @@
 import { computed, onMounted, ref } from "vue";
 import { t } from "../i18n";
 import { apiGet } from "../lib/api";
-import { formatNumber } from "../lib/format";
+import { formatDate, formatNumber } from "../lib/format";
 
 const loading = ref(true);
 const error = ref(false);
 const data = ref([]);
+// The two scrapes compared, the same for every region
+const dates = ref(null);
 
 onMounted(async () => {
   try {
     const res = await apiGet("/histogram");
-    data.value = (Array.isArray(res?.data) ? res.data : [])
-      .map((r) => ({ label: r.region ?? null, value: Number(r.pct) }))
+    const raw = Array.isArray(res?.data) ? res.data : [];
+    data.value = raw
+      .map((r) => ({ label: r.region ?? null, value: Number(r.pct), count: Number(r.n_listings) || null }))
       .filter((d) => Number.isFinite(d.value))
       .sort((a, b) => b.value - a.value);
+    const first = raw.find((r) => r.start_date && r.end_date);
+    if (first) dates.value = { start: first.start_date, end: first.end_date };
   } catch (e) {
     console.error(e);
     error.value = true;
@@ -51,6 +63,13 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+// Formatted at render time, so a language switch updates the months
+const period = computed(() =>
+  dates.value && data.value.length
+    ? { start: formatDate(dates.value.start), end: formatDate(dates.value.end) }
+    : null
+);
 
 const domain = computed(() => {
   const vals = data.value.map((d) => d.value);
@@ -84,6 +103,8 @@ const formatPct = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${formatNumber(Math
   gap: 16px;
 }
 .region { font-weight: 600; }
+.count { display: block; font-weight: 400; font-size: 0.8rem; color: var(--ink-2); }
+.note { margin: 24px 0 0; font-size: 0.85rem; color: var(--ink-2); max-width: 70ch; }
 .track { position: relative; height: 28px; }
 .track::before {
   content: "";

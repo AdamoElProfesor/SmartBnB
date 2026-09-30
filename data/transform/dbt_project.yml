@@ -24,8 +24,15 @@ vars:
   # Neighbourhood baselines use the scrapes and prices of these last months
   # (data/db/pipeline.py --stats-months overrides it)
   stats_window_months: 3
-  # "Prices this year": first priced scrape of this window against the latest
+  # Price trends: first priced scrape of this window against the latest
   trend_window_months: 12
+  # A new price series starts when the median price change of the same
+  # listings between two consecutive priced scrapes is above this ratio or
+  # below its inverse: Inside Airbnb changed its price definition. A normal
+  # step moves the median listing by about 1%, the March 2026 one by 34%.
+  price_break_ratio: 1.25
+  # A district's trend needs at least this many listings priced at both dates
+  min_trend_listings: 20
   # A listing is active (still on Airbnb) when it is in one of the last
   # active_scrapes scrapes. 1 would be exact, but a single partial file
   # (2026-01-15 had 3,851 rows instead of about 5,500) would then mark
