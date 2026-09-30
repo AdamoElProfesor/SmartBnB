@@ -185,9 +185,9 @@ describe("score.service analysis cache", () => {
 
   test("the score comes with the points of each part, which add up to it", async () => {
     repo.aiAnalyses.get.mockResolvedValue(analysis);
-    repo.listings.getById.mockResolvedValue({ ...listing, count_airbnb: 3 });
+    repo.listings.getById.mockResolvedValue({ ...listing, price_comparables: 3 });
     const out = await service.computeFromUrl("53584592");
-    expect(out.breakdown.map((p) => p.part)).toEqual(["price", "reviews", "amenities", "superhost"]);
+    expect(out.breakdown.map((p) => p.part)).toEqual(["price", "reviews", "rating", "amenities", "superhost"]);
     expect(out.breakdown.reduce((sum, p) => sum + p.points, 0)).toBe(out.smart_score);
     expect(out.breakdown[0]).toMatchObject({ max: 45, status: "low_sample", inputs: { price: 76, comparables: 3 } });
     // No reviews baseline in the test listing: the part is neutral and says so
