@@ -11,7 +11,7 @@ activity, amenities and host status, summed up in a score out of 100.
 
 **Live at [smartbnb.ch](https://www.smartbnb.ch)**
 
-[![Watch the SmartBnB demo (1 min 21)](docs/media/demo-thumbnail.jpg)](https://www.smartbnb.ch/media/smartbnb-demo.mp4)
+[![Watch the SmartBnB demo (1 min 21)](docs/media/demo-thumbnail.jpg)](https://www.smartbnb.ch/media/smartbnb-demo.mp4?v=2)
 
 ## What it does
 
