@@ -72,8 +72,9 @@ cd ../backend && npm ci && npm start                       # http://localhost:30
 ```
 
 The AI analysis is optional: without an AI key the score is shown alone. Tests
-run with `npm test` in `smartbnb/backend` and need no database. Docker and
-production setup: [docs/deployment.md](docs/deployment.md).
+run with `npm test` in `smartbnb/backend` and need no database;
+`npm run test:integration` runs the SQL queries against a throwaway Postgres.
+Docker and production setup: [docs/deployment.md](docs/deployment.md).
 
 ## Data
 

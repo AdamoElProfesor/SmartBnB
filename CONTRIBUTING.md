@@ -48,7 +48,10 @@ snapshots in `data/`.
    behaviour. Logic worth testing goes in `smartbnb/frontend/src/lib`, so it
    can be tested without a browser.
 3. Make sure `npm test` (backend) and `npm run lint`, `npm test` and
-   `npm run build` (frontend) pass.
+   `npm run build` (frontend) pass. If you change a SQL query, also run
+   `npm run test:integration` in `smartbnb/backend` against a throwaway
+   local Postgres (see [docs/deployment.md](docs/deployment.md)); CI runs it
+   anyway.
 4. Open a pull request against `main` and describe what changed and how you
    checked it. The **Build + Tests** check must pass before it can be merged.
 

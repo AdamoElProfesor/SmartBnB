@@ -56,6 +56,19 @@ http://localhost:5173 and proxies `/api` to the backend.
 Backend tests: `npm test` in `smartbnb/backend`. They mock the database and
 the AI, so they need no `.env`.
 
+The SQL of `src/repositories/sql` is tested against a real Postgres with
+`npm run test:integration`. Point `TEST_DATABASE_URL` to an empty local
+database you can throw away: each test file drops every table, rebuilds it
+from `data/db/schema.sql` and `seed.sql`, and loads the small data set of
+`test/integration/fixture.sql`. The tests refuse a non-local host, and are
+skipped when `TEST_DATABASE_URL` is not set. CI runs them on every pull
+request.
+
+```bash
+createdb backend_it
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/backend_it npm run test:integration
+```
+
 ## 4) Run with Docker
 
 ```bash
