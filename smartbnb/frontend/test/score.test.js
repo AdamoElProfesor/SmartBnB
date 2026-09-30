@@ -1,5 +1,56 @@
 import { describe, expect, test } from "vitest";
-import { priceComparison, scoreErrorMessage, verdictFor } from "../src/lib/score";
+import { breakdownRows, priceComparison, scoreErrorMessage, verdictFor } from "../src/lib/score";
+
+describe("breakdownRows", () => {
+  const part = (over) => ({ part: "price", points: 20, max: 45, status: "ok", inputs: {}, ...over });
+
+  test("is empty without a breakdown (a listing that left Airbnb)", () => {
+    expect(breakdownRows(null)).toEqual([]);
+  });
+
+  test("says how far the price is from the median, and on how many stays", () => {
+    const [row] = breakdownRows([part({ inputs: { price: 130, median_price: 100, comparables: 42 } })]);
+    expect(row).toMatchObject({ label: "Price", points: 20, max: 45, neutral: false, warning: null });
+    expect(row.fill).toBeCloseTo(44.44, 1);
+    expect(row.sentence).toBe("30% above the median of 42 similar stays.");
+  });
+
+  test("falls back to the average price without a median", () => {
+    const [row] = breakdownRows([part({ inputs: { price: 100, median_price: null, avg_price: 100, comparables: 1 } })]);
+    expect(row.sentence).toBe("At the median of 1 similar stay.");
+  });
+
+  test("warns when the comparison rests on few listings", () => {
+    const [row] = breakdownRows([
+      part({ status: "low_sample", inputs: { price: 90, median_price: 100, comparables: 3 } }),
+    ]);
+    expect(row.sentence).toBe("10% below the median of 3 similar stays.");
+    expect(row.warning).toBe("Compared with only 3 listings: read this with care.");
+  });
+
+  test("marks a neutral part and says which data is missing", () => {
+    const rows = breakdownRows([
+      part({ status: "neutral_missing_data", inputs: { price: null } }),
+      part({ status: "neutral_missing_data", inputs: { price: 90, median_price: null, avg_price: null } }),
+    ]);
+    expect(rows.every((r) => r.neutral)).toBe(true);
+    expect(rows[0].sentence).toMatch(/^No recent price/);
+    expect(rows[1].sentence).toMatch(/^No similar stays nearby/);
+  });
+
+  test("describes the reviews, amenities and superhost parts", () => {
+    const rows = breakdownRows([
+      part({ part: "reviews", inputs: { reviews_per_month: 1.25, area_reviews_per_month: 0.8 } }),
+      part({ part: "amenities", inputs: { amenities_score: 30, min: 5, max: 52 } }),
+      part({ part: "superhost", inputs: { host_is_superhost: false } }),
+    ]);
+    expect(rows.map((r) => r.sentence)).toEqual([
+      "1.3 reviews a month, against 0.8 on average in the area.",
+      "30 amenity points, where the best-equipped stay has 52.",
+      "The host is not a Superhost.",
+    ]);
+  });
+});
 
 describe("verdictFor", () => {
   test("uses the 70 and 50 thresholds", () => {

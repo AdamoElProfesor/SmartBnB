@@ -131,7 +131,14 @@ describe("score.service analysis cache", () => {
   test("a listing that left Airbnb is not scored and never reaches the AI", async () => {
     repo.listings.getById.mockResolvedValue({ ...listing, is_active: false, last_seen: "2025-03-16" });
     const out = await service.computeFromUrl("53584592");
-    expect(out).toMatchObject({ ok: true, active: false, last_seen: "2025-03-16", smart_score: null, analysis: null });
+    expect(out).toMatchObject({
+      ok: true,
+      active: false,
+      last_seen: "2025-03-16",
+      smart_score: null,
+      breakdown: null,
+      analysis: null,
+    });
     expect(out.listing.name).toBe("Petite chambre");
     expect(ai.chatProsCons).not.toHaveBeenCalled();
     expect(repo.aiAnalyses.get).not.toHaveBeenCalled();
@@ -145,6 +152,17 @@ describe("score.service analysis cache", () => {
     const out = await service.computeFromUrl("53584592");
     expect(out.active).toBe(true);
     expect(typeof out.smart_score).toBe("number");
+  });
+
+  test("the score comes with the points of each part, which add up to it", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(analysis);
+    repo.listings.getById.mockResolvedValue({ ...listing, count_airbnb: 3 });
+    const out = await service.computeFromUrl("53584592");
+    expect(out.breakdown.map((p) => p.part)).toEqual(["price", "reviews", "amenities", "superhost"]);
+    expect(out.breakdown.reduce((sum, p) => sum + p.points, 0)).toBe(out.smart_score);
+    expect(out.breakdown[0]).toMatchObject({ max: 45, status: "low_sample", inputs: { price: 76, comparables: 3 } });
+    // No reviews baseline in the test listing: the part is neutral and says so
+    expect(out.breakdown[1].status).toBe("neutral_missing_data");
   });
 
   test("invalid or unknown listings never reach the AI", async () => {

@@ -63,6 +63,27 @@
             </div>
           </div>
 
+          <!-- What each part of the score gave, and why -->
+          <div v-if="parts.length" class="parts">
+            <h3>{{ t("evaluator.whyTitle", { score: result.smart_score }) }}</h3>
+            <ul>
+              <li v-for="p in parts" :key="p.key" :class="{ neutral: p.neutral }">
+                <div class="part-head">
+                  <span class="part-label">
+                    {{ p.label }}
+                    <span v-if="p.neutral" class="part-tag">{{ t("evaluator.parts.neutral") }}</span>
+                  </span>
+                  <span class="part-points">{{ t("evaluator.points", { points: p.points, max: p.max }) }}</span>
+                </div>
+                <span class="part-track" aria-hidden="true">
+                  <span class="part-fill" :style="{ width: p.fill + '%' }"></span>
+                </span>
+                <p class="part-why">{{ p.sentence }}</p>
+                <p v-if="p.warning" class="part-warning">{{ p.warning }}</p>
+              </li>
+            </ul>
+          </div>
+
           <div v-if="price" class="price-rule">
             <p class="rule-caption">
               <strong>{{ formatCHF(listing.price) }}</strong> {{ t("evaluator.perNight", { sentence: price.sentence }) }}
@@ -80,7 +101,6 @@
             </div>
             <p v-if="listing.price_date" class="fine">{{ t("evaluator.priceSeen", { date: formatDate(listing.price_date) }) }}</p>
           </div>
-          <p v-else class="fine">{{ t("evaluator.noPrice") }}</p>
 
           <dl class="facts">
             <div>
@@ -172,7 +192,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { locale, t } from "../i18n";
 import { apiPost } from "../lib/api";
 import { amenityLabel, formatCHF, formatDate, formatNumber, isNum, roomTypeLabel } from "../lib/format";
-import { priceComparison, scoreErrorMessage, verdictFor } from "../lib/score";
+import { breakdownRows, priceComparison, scoreErrorMessage, verdictFor } from "../lib/score";
 import DemoVideo from "./DemoVideo.vue";
 
 const EXAMPLE_URL = "https://www.airbnb.ch/rooms/53584592";
@@ -205,6 +225,7 @@ const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const gone = computed(() => result.value?.active === false);
 const verdict = computed(() => verdictFor(result.value?.smart_score));
 const price = computed(() => priceComparison(listing.value));
+const parts = computed(() => breakdownRows(result.value?.breakdown));
 
 // One orchestrated moment: the score counts up when a result arrives
 // (not again when the same listing comes back in another language).
@@ -454,6 +475,29 @@ h1:lang(fr) { max-width: 13ch; }
 }
 .gone-title { margin: 0; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
 .gone-text { margin: 6px 0 0; color: var(--ink-2); }
+
+.parts { margin: 0 0 28px; }
+.parts h3 { font-size: 0.95rem; margin: 0 0 14px; }
+.parts ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.part-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.part-label { font-weight: 700; }
+.part-points { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.part-track { display: block; height: 8px; margin: 6px 0; border-radius: 99px; background: var(--paper-2); overflow: hidden; }
+.part-fill { display: block; height: 100%; border-radius: 99px; background: var(--lake); }
+/* A neutral part is a placeholder, not a measure: hatched, never in the brand colour */
+.neutral .part-fill {
+  background: repeating-linear-gradient(135deg, var(--ink-3) 0 4px, transparent 4px 8px);
+}
+.part-tag {
+  margin-left: 6px; padding: 1px 8px; border-radius: 99px;
+  font-size: 0.75rem; font-weight: 600; color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.part-why { margin: 0; font-size: 0.9rem; color: var(--ink-2); }
+.part-warning {
+  margin: 6px 0 0; padding: 6px 10px; border-radius: 0 8px 8px 0;
+  border-left: 3px solid var(--mid); background: #F8EEDC; font-size: 0.85rem;
+}
 
 .price-rule { margin-bottom: 28px; }
 .rule-caption { margin: 0 0 18px; }
