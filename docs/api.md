@@ -127,6 +127,24 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   "active": true,
   "last_seen": "YYYY-MM-DD",
   "smart_score": 0,
+  "breakdown": [
+    {
+      "part": "price",
+      "points": 0,
+      "max": 45,
+      "status": "ok",
+      "inputs": { "price": 0, "median_price": 0, "avg_price": 0, "comparables": 0 }
+    },
+    {
+      "part": "reviews",
+      "points": 0,
+      "max": 30,
+      "status": "ok",
+      "inputs": { "reviews_per_month": 0, "area_reviews_per_month": 0, "comparables": 0 }
+    },
+    { "part": "amenities", "points": 0, "max": 15, "status": "ok", "inputs": { "amenities_score": 0, "min": 0, "max": 0 } },
+    { "part": "superhost", "points": 0, "max": 10, "status": "ok", "inputs": { "host_is_superhost": true } }
+  ],
   "listing": {
     "id": "string",
     "name": "string",
@@ -162,8 +180,19 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   the daily AI budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default).
   `active` is `false` when the listing is no longer on Airbnb (missing from
   the last 2 scrapes); `last_seen` is the day of its latest scrape. Such a
-  listing is not scored: `smart_score` and `analysis` are `null`, and no AI
+  listing is not scored: `smart_score`, `breakdown` and `analysis` are `null`, and no AI
   call is made. The listing's data is still returned.
+
+  `breakdown` says where the score comes from, one entry per part in this
+  order: `points` earned out of `max` (the part's weight), whole numbers that
+  add up exactly to `smart_score` (largest remainder rounding). `status` is
+  `ok`, `neutral_missing_data` when the part lacked data and counts as half
+  its points (no recent price, no neighbourhood baseline), or `low_sample`
+  when its neighbourhood baseline rests on fewer than 5 listings.
+  `comparables` is that number of listings: the listings behind the median
+  price of the same room type in the neighbourhood, and behind the
+  neighbourhood's reviews average. `breakdown` is `null` for a listing that
+  is not scored.
 
   `analysis` holds at most 4 pros and 4 cons, written in `lang`. `analysis_cached` is `true` when it comes from the
   `ai_analyses` cache instead of a new AI call. Each language is cached
