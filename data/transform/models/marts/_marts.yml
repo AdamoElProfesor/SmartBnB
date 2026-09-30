@@ -55,37 +55,6 @@ models:
         description: Sum of the weights (data/db/seed.sql) of the listing's amenity categories.
         data_tests: [not_null]
 
-  - name: neighbourhood_room_type_stats
-    description: >
-      Average and median current price per neighbourhood and room type, over
-      the prices seen in the last stats_window_months. The score compares a
-      listing's price with the median of its group.
-    data_tests:
-      - unique_columns:
-          arguments:
-            columns: [neighbourhood, room_type]
-    columns:
-      - name: neighbourhood
-        data_tests: [not_null]
-      - name: room_type
-        data_tests: [not_null]
-      - name: avg_price
-        description: Mean nightly price in CHF.
-      - name: median_price
-        description: Median nightly price in CHF.
-        data_tests:
-          - not_null
-          - in_range:
-              arguments:
-                min_value: "{{ var('min_nightly_price') }}"
-                max_value: "{{ var('max_nightly_price') }}"
-      - name: count_airbnb
-        description: Number of listings behind the average and the median.
-        data_tests:
-          - not_null
-          - in_range:
-              arguments: {min_value: 1, max_value: 100000}
-
   - name: price_baselines
     description: >
       The prices each active listing's price is compared with: the average

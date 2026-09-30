@@ -17,7 +17,7 @@ sources          raw.airbnb_vaud, raw.airbnb_snapshots, raw.airbnb_amenities   (
 staging          stg_listings, stg_snapshots, stg_amenities, stg_price_observations      views
 intermediate     int_active_listings, int_listing_prices, int_listing_latest_snapshots    views
 marts            listing_activity, current_prices, airbnb_points,                         tables
-                 price_baselines, neighbourhood_room_type_stats, neighbourhood_stats, price_trends
+                 price_baselines, neighbourhood_stats, price_trends
 ```
 
 - **Staging**: one model per source, renamed and cleaned. `stg_snapshots`

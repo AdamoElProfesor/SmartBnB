@@ -63,13 +63,6 @@ INSERT INTO public.airbnb_points (airbnb_id, total_points) VALUES
   (102, 10),
   (103, 0);
 
-INSERT INTO public.neighbourhood_room_type_stats
-  (neighbourhood, room_type, avg_price, median_price, count_airbnb)
-VALUES
-  ('Lausanne', 'Entire home/apt', 145.5, 140, 2),
-  ('Lausanne', 'Private room',    70,    70,  5),
-  ('Montreux', 'Private room',    82,    80,  1);
-
 -- 101 is compared in its neighbourhood, 103 falls back to its district
 INSERT INTO public.price_baselines
   (listing_id, level, area, capacity_band, avg_price, median_price, n_listings)
