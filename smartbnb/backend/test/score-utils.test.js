@@ -122,8 +122,8 @@ describe("score.utils rating part", () => {
 
   test.each([
     [5.0, 1000, 100], // many reviews: its own rating, full points
-    [4.5, 1000, 50],
-    [3.9, 1000, 0], // an adjusted 4.0 or less gives no point
+    [4.75, 1000, 50],
+    [4.4, 1000, 0], // an adjusted 4.5 or less gives no point
     [2.0, 1000, 0],
   ])("a rating of %f from %i reviews gives %i", (rating, reviews, expected) => {
     expect(computeSmartScore(rated(rating, reviews), only("rating")).score).toBe(expected);
@@ -138,7 +138,7 @@ describe("score.utils rating part", () => {
       adjusted_rating: 4.83,
       area_rating: 4.8,
     });
-    expect(fewPerfect.score).toBe(83);
+    expect(fewPerfect.score).toBe(67);
     // (6 x 2.0 + 10 x 4.8) / 16 = 3.75: a bad rating from 6 guests still sinks it
     expect(computeSmartScore(rated(2.0, 6), only("rating")).score).toBe(0);
   });
@@ -146,14 +146,14 @@ describe("score.utils rating part", () => {
   test("a listing rated 2/5 by many guests loses the whole part", () => {
     const good = computeSmartScore(rated(4.9, 200));
     const bad = computeSmartScore(rated(2.0, 200));
-    expect(partOf(good, "rating").points).toBe(13);
+    expect(partOf(good, "rating").points).toBe(12);
     expect(partOf(bad, "rating").points).toBe(0);
-    expect(good.score - bad.score).toBe(13);
+    expect(good.score - bad.score).toBe(12);
   });
 
   test("without a rating it counts as the canton's mean, and says so", () => {
     const r = computeSmartScore({ ...base, canton_avg_rating: 4.8 }, only("rating"));
-    expect(r.score).toBe(80);
+    expect(r.score).toBe(60);
     expect(partOf(r, "rating").status).toBe("neutral_missing_data");
   });
 

@@ -6,8 +6,11 @@ const DEFAULTS = {
   weights: { price: 0.45, reviews: 0.15, rating: 0.15, amenities: 0.15, superhost: 0.1 },
   priceBands: { goodRatio: 0.8, badRatio: 1.3 },
   reviewsBands: { lowRatio: 0.5, highRatio: 1.5 },
-  // An adjusted rating of 4.0 or less gives no point, 5.0 all of them
-  ratingBands: { low: 4.0, high: 5.0 },
+  // An adjusted rating of 4.5 or less gives no point, 5.0 all of them.
+  // Ratings are bunched at the top (half at 4.9 or more, 11% below 4.5 in
+  // September 2026): on a 4.0 to 5.0 scale a 4.4 and a 4.9 were only 6
+  // points apart, and as many badly rated listings stayed "worth booking"
+  ratingBands: { low: 4.5, high: 5.0 },
   // Bayesian rating: as if every listing had this many extra reviews at the
   // canton's mean rating. Half the listings have 6 reviews or fewer, so a
   // 5.0 from 2 guests counts as about 4.8, and a 2.0 from 6 guests as 3.7.
