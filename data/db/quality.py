@@ -69,14 +69,15 @@ METRICS_SQL = {
                    AND v.longitude BETWEEN %(lng_min)s AND %(lng_max)s)
           AND v.id IN (SELECT listing_id FROM public.airbnb_snapshots
                        WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots))""",
-    "price_stat_groups": "SELECT COUNT(*) FROM public.neighbourhood_room_type_stats",
+    # Listings with a price baseline (price_baselines, issue #19)
+    "price_stat_groups": "SELECT COUNT(*) FROM public.price_baselines",
+    # Active listings compared with fewer than 5 similar listings even after
+    # the fallback to the district and the canton, or with none
     "small_group_share": """
-        SELECT AVG((COALESCE(n.count_airbnb, 0) < 5)::int)::float
-        FROM public.airbnb_vaud v
-        LEFT JOIN public.neighbourhood_room_type_stats n
-          ON n.neighbourhood = v.neighbourhood_cleansed AND n.room_type = v.room_type
-        WHERE v.id IN (SELECT listing_id FROM public.airbnb_snapshots
-                       WHERE scrape_id = (SELECT MAX(scrape_id) FROM public.airbnb_snapshots))""",
+        SELECT AVG((COALESCE(b.n_listings, 0) < 5)::int)::float
+        FROM public.listing_activity a
+        LEFT JOIN public.price_baselines b ON b.listing_id = a.listing_id
+        WHERE a.is_active""",
     "review_stat_neighbourhoods": "SELECT COUNT(*) FROM public.neighbourhood_stats",
     # Active listings (listing_activity) missing from the latest scrape: about
     # 4% normally (those that left last month); much more means a partial file

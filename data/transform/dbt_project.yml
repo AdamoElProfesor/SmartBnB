@@ -21,6 +21,10 @@ vars:
   max_nightly_price: 5000
   # A listing's current price must be seen in the months before the newest price
   price_window_months: 6
+  # A price is compared with the neighbourhood only when it has at least this
+  # many similar listings (same room type and capacity band), else with the
+  # district, else with the canton (price_baselines)
+  min_price_comparables: 5
   # Neighbourhood baselines use the scrapes and prices of these last months
   # (data/db/pipeline.py --stats-months overrides it)
   stats_window_months: 3
