@@ -213,7 +213,7 @@ def fetch_snapshots(dates):
         try:
             raw = gzip.decompress(body)
         except (OSError, EOFError) as e:
-            raise SystemExit(f"  {date}: download is not a valid gzip file ({e})")
+            raise SystemExit(f"  {date}: download is not a valid gzip file ({e})") from e
         if not raw.startswith(b"id,"):
             raise SystemExit(f"  {date}: download is not an InsideAirbnb listings CSV")
         write_snapshot(dest, raw)

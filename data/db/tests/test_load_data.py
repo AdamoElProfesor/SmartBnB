@@ -16,9 +16,9 @@ def test_published_columns_hold_no_host_data():
 
 def test_minimize_keeps_only_published_columns_and_values():
     source = (
-        'id,host_name,name,description,price\n'
-        '1,Marie,"Studio, lake view","Hi, I am Marie\nWelcome",$120.00\n'
-    ).encode("utf-8")
+        b'id,host_name,name,description,price\n'
+        b'1,Marie,"Studio, lake view","Hi, I am Marie\nWelcome",$120.00\n'
+    )
     out = rows(load_data.minimize_csv(source))
     assert out == [["id", "name", "price"], ["1", "Studio, lake view", "$120.00"]]
 

@@ -1,0 +1,12 @@
+# Lint of the data pipeline code (CI runs `ruff check data`)
+target-version = "py312"
+line-length = 120
+# The modules of data/db import each other by name (load_data, publish...)
+src = ["db", "db/tests"]
+
+[lint]
+# pyflakes and pycodestyle (errors), import order, bugbear (likely bugs),
+# pyupgrade (modern syntax for the target version)
+select = ["E", "F", "W", "I", "B", "UP"]
+# argparse help texts and SQL fragments read better on one line
+ignore = ["E501"]

@@ -51,7 +51,7 @@ def publish(cur, source_schema=BUILD_SCHEMA):
     ]
     cur.execute("TRUNCATE " + ", ".join(f"public.{t}" for t in PUBLISHED_TABLES))
     counts = {}
-    for table, statement in zip(PUBLISHED_TABLES, statements):
+    for table, statement in zip(PUBLISHED_TABLES, statements, strict=True):
         cur.execute(statement)
         counts[table] = cur.rowcount
         print(f"  public.{table}: {cur.rowcount} rows")

@@ -76,13 +76,15 @@ jobs:
           psql -h localhost -U postgres -c "CREATE DATABASE backend_it"
           npm run test:integration
 
-      # Data pipeline tests (no database needed), then no snapshot may be
-      # committed here: they belong to the private SmartBnB-data repository,
-      # since the Inside Airbnb data policies ask not to republish the data
+      # Data pipeline lint (data/ruff.toml) and tests (no database needed),
+      # then no snapshot may be committed here: they belong to the private
+      # SmartBnB-data repository, since the Inside Airbnb data policies ask
+      # not to republish the data
       - name: Test the data pipeline and check no snapshot is published
         run: |
           python3 -m venv /tmp/venv
           /tmp/venv/bin/pip install --quiet -r data/db/requirements-dev.txt
+          /tmp/venv/bin/ruff check data
           (cd data/db && /tmp/venv/bin/python -m pytest -q)
           published=$(git ls-files '*.csv.gz' '*.csv')
           if [ -n "${published}" ]; then
