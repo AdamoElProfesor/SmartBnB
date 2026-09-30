@@ -1,5 +1,5 @@
 const service = require("../services/score.service");
-const { parseLang } = require("../utils/validation");
+const { parseLang, parseListingId } = require("../utils/validation");
 
 /**
  * Computes SmartBnB score from a posted Airbnb URL and returns JSON
@@ -34,4 +34,28 @@ async function computeFromUrl(req, res, next) {
   }
 }
 
-module.exports = { computeFromUrl };
+/**
+ * Returns the AI analysis of a scored listing, written by the AI when it is
+ * not cached yet. Accepts body fields: listingId, lang ("en" by default)
+ * Responds 400 on an invalid id or language, 404 if not found
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ * @returns {Promise<void>}
+ */
+async function analyze(req, res, next) {
+  try {
+    const raw = req.body?.listingId;
+    const listingId = parseListingId(typeof raw === "number" && Number.isSafeInteger(raw) ? String(raw) : raw);
+    const lang = parseLang(req.body?.lang);
+
+    const data = await service.analyzeListing(listingId, { lang });
+    if (!data.ok) return res.status(404).json(data);
+
+    res.json(data);
+  } catch (e) {
+    next(e);
+  }
+}
+
+module.exports = { computeFromUrl, analyze };

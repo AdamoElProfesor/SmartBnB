@@ -83,11 +83,11 @@ function jsonLimiter({ windowMs, limit, message }) {
 }
 
 /**
- * Limiters for POST /api/score, which spends the shared daily AI quota.
+ * Limiters for POST /api/score/analysis, which spends the shared daily AI quota.
  * Limits can be tuned with SCORE_LIMIT_PER_MINUTE / SCORE_LIMIT_PER_DAY.
  * @returns {import('express').RequestHandler[]}
  */
-function scoreLimiters() {
+function analysisLimiters() {
   return [
     jsonLimiter({
       windowMs: 60 * 1000,
@@ -98,6 +98,22 @@ function scoreLimiters() {
       windowMs: 24 * 60 * 60 * 1000,
       limit: Number(process.env.SCORE_LIMIT_PER_DAY) || 60,
       message: "Daily limit of listing checks reached, please come back tomorrow.",
+    }),
+  ];
+}
+
+/**
+ * Limiter for POST /api/score: the score itself spends no AI quota, only a
+ * few database queries, so it gets a lighter limit than the analysis.
+ * Tuned with CHECK_LIMIT_PER_MINUTE.
+ * @returns {import('express').RequestHandler[]}
+ */
+function scoreLimiters() {
+  return [
+    jsonLimiter({
+      windowMs: 60 * 1000,
+      limit: Number(process.env.CHECK_LIMIT_PER_MINUTE) || 30,
+      message: "Too many checks, please wait a minute and try again.",
     }),
   ];
 }
@@ -127,4 +143,4 @@ function warnIfRelaySecretMissing() {
   }
 }
 
-module.exports = { clientIp, scoreLimiters, apiLimiter, warnIfRelaySecretMissing };
+module.exports = { clientIp, scoreLimiters, analysisLimiters, apiLimiter, warnIfRelaySecretMissing };
