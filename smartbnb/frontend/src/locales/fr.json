@@ -41,7 +41,39 @@
     "ruleLabel": "Annonce {price}, médiane {median}",
     "median": "médiane {price}",
     "priceSeen": "Prix relevé le {date}.",
-    "noPrice": "Pas de prix récent pour cette annonce : la part du prix dans le score est donc neutre.",
+    "whyTitle": "Pourquoi {score}/100",
+    "points": "{points} points sur {max}",
+    "parts": {
+      "price": "Prix",
+      "reviews": "Avis",
+      "amenities": "Équipements",
+      "superhost": "Superhôte",
+      "priceBelow": {
+        "one": "{pct}% en dessous de la médiane de {count} logement similaire.",
+        "other": "{pct}% en dessous de la médiane de {count} logements similaires."
+      },
+      "priceAbove": {
+        "one": "{pct}% au-dessus de la médiane de {count} logement similaire.",
+        "other": "{pct}% au-dessus de la médiane de {count} logements similaires."
+      },
+      "priceAt": {
+        "one": "Au niveau de la médiane de {count} logement similaire.",
+        "other": "Au niveau de la médiane de {count} logements similaires."
+      },
+      "priceNoPrice": "Pas de prix récent pour cette annonce : cette part compte comme la moyenne.",
+      "priceNoBaseline": "Aucun logement similaire à proximité pour comparer le prix : cette part compte comme la moyenne.",
+      "reviewsVs": "{value} avis par mois, contre {area} en moyenne dans le secteur.",
+      "reviewsNone": "Pas assez d'avis pour comparer : cette part compte comme la moyenne.",
+      "amenitiesVs": "{value} points d'équipements, alors que le logement le mieux équipé en a {max}.",
+      "amenitiesNone": "Pas assez de données sur les équipements : cette part compte comme la moyenne.",
+      "superhostYes": "L'hôte est Superhôte.",
+      "superhostNo": "L'hôte n'est pas Superhôte.",
+      "smallSample": {
+        "one": "Comparé à une seule annonce : à prendre avec prudence.",
+        "other": "Comparé à seulement {count} annonces : à prendre avec prudence."
+      },
+      "neutral": "compte comme la moyenne"
+    },
     "rating": "Note",
     "noRating": "Aucune note",
     "reviewsMonth": "Avis par mois",

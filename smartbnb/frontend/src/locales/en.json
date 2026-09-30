@@ -41,7 +41,39 @@
     "ruleLabel": "Listing {price}, median {median}",
     "median": "median {price}",
     "priceSeen": "Price seen on {date}.",
-    "noPrice": "No recent price for this listing, so the price part of the score is neutral.",
+    "whyTitle": "Why {score}/100",
+    "points": "{points} of {max} points",
+    "parts": {
+      "price": "Price",
+      "reviews": "Reviews",
+      "amenities": "Amenities",
+      "superhost": "Superhost",
+      "priceBelow": {
+        "one": "{pct}% below the median of {count} similar stay.",
+        "other": "{pct}% below the median of {count} similar stays."
+      },
+      "priceAbove": {
+        "one": "{pct}% above the median of {count} similar stay.",
+        "other": "{pct}% above the median of {count} similar stays."
+      },
+      "priceAt": {
+        "one": "At the median of {count} similar stay.",
+        "other": "At the median of {count} similar stays."
+      },
+      "priceNoPrice": "No recent price for this listing, so this part counts as average.",
+      "priceNoBaseline": "No similar stays nearby to compare the price with, so this part counts as average.",
+      "reviewsVs": "{value} reviews a month, against {area} on average in the area.",
+      "reviewsNone": "Not enough review data to compare, so this part counts as average.",
+      "amenitiesVs": "{value} amenity points, where the best-equipped stay has {max}.",
+      "amenitiesNone": "Not enough amenity data, so this part counts as average.",
+      "superhostYes": "The host is a Superhost.",
+      "superhostNo": "The host is not a Superhost.",
+      "smallSample": {
+        "one": "Compared with a single listing only: read this with care.",
+        "other": "Compared with only {count} listings: read this with care."
+      },
+      "neutral": "counts as average"
+    },
     "rating": "Rating",
     "noRating": "No rating",
     "reviewsMonth": "Reviews a month",

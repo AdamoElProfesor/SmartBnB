@@ -55,6 +55,28 @@ describe("Evaluator", () => {
     expect(text).toContain("20% below the median for an entire home in Montreux.");
   });
 
+  test("explains the points of each part, and flags the neutral ones", async () => {
+    apiPost.mockResolvedValue({
+      ...RESULT,
+      breakdown: [
+        { part: "price", points: 32, max: 45, status: "ok", inputs: { price: 120, median_price: 150, comparables: 42 } },
+        { part: "reviews", points: 15, max: 30, status: "neutral_missing_data", inputs: {} },
+        { part: "amenities", points: 15, max: 15, status: "ok", inputs: { amenities_score: 52, min: 5, max: 52 } },
+        { part: "superhost", points: 10, max: 10, status: "ok", inputs: { host_is_superhost: true } },
+      ],
+    });
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    const text = wrapper.find(".parts").text();
+    expect(text).toContain("Why 72/100");
+    expect(text).toContain("32 of 45 points");
+    expect(text).toContain("20% below the median of 42 similar stays.");
+    expect(text).toContain("Not enough review data to compare, so this part counts as average.");
+    expect(wrapper.findAll(".parts li.neutral")).toHaveLength(1);
+  });
+
   test("shows the message for a listing outside our data", async () => {
     apiPost.mockRejectedValue(Object.assign(new Error("404 Not Found"), { status: 404 }));
     vi.spyOn(console, "error").mockImplementation(() => {});
