@@ -208,8 +208,10 @@ minutes (`READ_CACHE_TTL_MS`), since it only changes when a snapshot is loaded.
 
 ### **`GET /api/histogram`**
 
-Returns the change of the median nightly price per region, in percent, between
-the first priced scrape of the last 12 months and the latest priced scrape.
+Returns, per region, the median change in percent of the nightly price of the
+listings priced both in the first priced scrape of the last 12 months and in
+the latest one. The comparison never crosses a change in how Inside Airbnb
+reports prices: the first date is then the first scrape after that change.
 The values are precomputed at each data refresh (`price_trends` table, see
 `data/transform/models/marts/price_trends.sql`) and cached in memory like the heatmap.
 
@@ -217,9 +219,15 @@ The values are precomputed at each data refresh (`price_trends` table, see
 
 - `200 OK` ->
 ```json
-{ "ok": true, "data": [ { "region": "string", "pct": 0 } ] }
+{
+  "ok": true,
+  "data": [
+    { "region": "string", "pct": 0, "start_date": "2026-03-16", "end_date": "2026-09-14", "n_listings": 0 }
+  ]
+}
 ```
 
-  Regions without prices at both dates are left out, and `data` is empty when
-  only one scrape has prices (nothing to compare). `pct` is `null` when the
-  starting median is 0.
+  `start_date` and `end_date` are the days of the two scrapes compared (the
+  same for every region), and `n_listings` the number of listings behind
+  `pct`. Regions with fewer than 20 such listings are left out, and `data` is
+  empty when there is nothing to compare yet.

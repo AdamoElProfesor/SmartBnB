@@ -181,8 +181,14 @@
     }
   },
   "trends": {
-    "title": "Prices this year",
-    "intro": "Change in the median nightly price of each district over the last 12 months of data.",
+    "title": "Price trends",
+    "intro": "Median change in the nightly price of the same listings, per district.",
+    "period": "From {start} to {end}.",
+    "listings": {
+      "one": "{count} listing",
+      "other": "{count} listings"
+    },
+    "note": "Only listings with a price at both dates count, and the comparison never spans a change in how Inside Airbnb reports prices.",
     "loading": "Loading the trends…",
     "error": "The price trends couldn't load. Reload the page to try again.",
     "empty": "No price trend is available yet.",

@@ -16,8 +16,8 @@ describe("histogram.controller.base", () => {
 
   test("GET /histogram returns price percentage difference per region", async () => {
     const exceptedResult = [
-      { region: "Morges", pct: 3.44 },
-      { region: "Lausanne", pct: -5.88 },
+      { region: "Morges", pct: 3.44, start_date: "2026-03-16", end_date: "2026-09-14", n_listings: 126 },
+      { region: "Lausanne", pct: -5.88, start_date: "2026-03-16", end_date: "2026-09-14", n_listings: 568 },
     ];
 
     repoFactory.histogram.getHistogramBase.mockResolvedValue(exceptedResult);
