@@ -101,10 +101,13 @@ stats, amenities).
 
 ### **`POST /api/score`**
 
-Computes the SmartBnB score for an Airbnb URL and returns a summary.
+Computes the SmartBnB score for an Airbnb URL and returns a summary. It never
+waits for the AI: the written analysis comes with the score only when it is
+already cached, otherwise the client asks for it with
+[`POST /api/score/analysis`](#post-apiscoreanalysis).
 
-Rate limited per visitor: 10 checks per minute and 60 per day by default
-(`SCORE_LIMIT_PER_MINUTE`, `SCORE_LIMIT_PER_DAY`).
+Rate limited per visitor: 30 checks per minute by default
+(`CHECK_LIMIT_PER_MINUTE`), on top of the limit of every `/api` route.
 
 ### Body (JSON)
 
@@ -171,17 +174,20 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
     "cons": ["..."],
     "summary": "string"
   },
-  "analysis_cached": false
+  "analysis_cached": false,
+  "analysis_pending": true
 }
 ```
 
-  `analysis` is empty (`pros: [], cons: [], summary: ""`) when no AI key is
-  set, the AI call fails (the listing is then not retried for 5 minutes), or
-  the daily AI budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default).
+  `analysis` is the cached analysis in `lang`, or `null`. `analysis_pending`
+  is `true` when an AI is configured and the analysis is not cached yet: ask
+  for it with `POST /api/score/analysis`. `analysis_cached` is `true` when
+  `analysis` is set.
   `active` is `false` when the listing is no longer on Airbnb (missing from
   the last 2 scrapes); `last_seen` is the day of its latest scrape. Such a
-  listing is not scored: `smart_score`, `breakdown` and `analysis` are `null`, and no AI
-  call is made. The listing's data is still returned.
+  listing is not scored: `smart_score`, `breakdown` and `analysis` are `null`,
+  `analysis_pending` is `false`, and no AI call is made. The listing's data is
+  still returned.
 
   `breakdown` says where the score comes from, one entry per part in this
   order: `points` earned out of `max` (the part's weight), whole numbers that
@@ -194,9 +200,7 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
   neighbourhood's reviews average. `breakdown` is `null` for a listing that
   is not scored.
 
-  `analysis` holds at most 4 pros and 4 cons, written in `lang`. `analysis_cached` is `true` when it comes from the
-  `ai_analyses` cache instead of a new AI call. Each language is cached
-  separately. Fields without data are `null`.
+  Fields without data are `null`.
 
 - `400 Bad Request` -> `"Invalid Airbnb URL"` (missing, empty or not a
   listing URL) or `"lang must be one of en, fr"`
@@ -204,6 +208,47 @@ Rate limited per visitor: 10 checks per minute and 60 per day by default
 - `422 Unprocessable Entity` -> `"Share link could not be resolved"` (a share
   link was recognised but did not redirect to a listing: expired code,
   timeout, or redirect outside Airbnb)
+- `429 Too Many Requests` -> `"Too many checks, please wait a minute and try
+  again."`
+
+### **`POST /api/score/analysis`**
+
+Returns the written AI analysis of a listing: from the `ai_analyses` cache,
+or written by the AI model when it is not cached yet (this can take several
+seconds). Parallel requests for the same listing share one AI call.
+
+Rate limited per visitor, since it spends the shared daily AI quota: 10
+requests per minute and 60 per day by default (`SCORE_LIMIT_PER_MINUTE`,
+`SCORE_LIMIT_PER_DAY`).
+
+### Body (JSON)
+
+- `listingId`: the `listing_id` returned by `POST /api/score` (digits).
+- `lang` (optional): `en` (default) or `fr`, as for `POST /api/score`.
+
+### Response
+
+- `200 OK` ->
+```json
+{
+  "ok": true,
+  "listing_id": "string",
+  "analysis": { "pros": ["..."], "cons": ["..."], "summary": "string" },
+  "analysis_cached": false
+}
+```
+
+  `analysis` holds at most 4 pros and 4 cons, written in `lang`.
+  `analysis_cached` is `true` when it comes from the cache instead of a new
+  AI call. Each language is cached separately. `analysis` is empty
+  (`pros: [], cons: [], summary: ""`) when no AI key is set, the AI call
+  fails (the listing is then not retried for 5 minutes), or the daily AI
+  budget is spent (`AI_DAILY_CALL_LIMIT`, 500 calls by default); it is `null`
+  for a listing no longer on Airbnb. Each call logs its duration, whether it
+  came from the cache and whether it is empty.
+
+- `400 Bad Request` -> `"Invalid listing id"` or `"lang must be one of en, fr"`
+- `404 Not Found` -> `"Listing not found"`
 - `429 Too Many Requests` -> `"Too many checks, please wait a minute and try
   again."` or `"Daily limit of listing checks reached, please come back
   tomorrow."`
