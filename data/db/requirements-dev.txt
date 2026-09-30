@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest>=9.1.1
+# Lint rules can change between minor versions: bump them on purpose
+ruff>=0.16.9,<0.17

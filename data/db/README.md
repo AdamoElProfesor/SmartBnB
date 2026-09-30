@@ -12,7 +12,7 @@ Everything needed to (re)build the SmartBnB Postgres database, on Supabase or lo
 | `quality.py` | The audit of each run (see [Data quality](#data-quality)) |
 | `roles.sql` | Least-privilege roles for the backend, the backup and the loader (see below) |
 | `migrations/` | Changes to apply to an existing database, see [Migrations](#migrations) |
-| `tests/` | Tests of the pipeline and of the checks: `pip install -r requirements-dev.txt`, then `pytest`; `tests/e2e_pipeline.py` runs the whole pipeline on synthetic data (CI) |
+| `tests/` | Tests of the pipeline and of the checks: `pip install -r requirements-dev.txt`, then `pytest` (and `ruff check ..` for the lint rules of `data/ruff.toml`); `tests/e2e_pipeline.py` runs the whole pipeline on synthetic data (CI) |
 
 The transformations (the T of ELT) are dbt models in
 [`data/transform`](../transform/README.md): they turn the raw tables into the
