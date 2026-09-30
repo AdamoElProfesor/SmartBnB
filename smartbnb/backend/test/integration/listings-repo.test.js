@@ -91,15 +91,21 @@ describeDb("listings repository against Postgres", () => {
         is_active: true,
         price: 150,
         price_date: "2026-09-14",
+        number_of_reviews: 400,
         number_of_reviews_ltm: 60,
         reviews_per_month: 2.2,
         review_scores_rating: 4.9,
         median_price: 140,
         avg_price: 145.5,
-        count_airbnb: 2,
+        price_comparables: 12,
+        price_baseline_level: "neighbourhood",
+        price_baseline_area: "Lausanne",
+        capacity_band: "3-4",
         neighborhood_avg_rating: 4.7,
         neighborhood_avg_reviews_per_month: 1.55,
         neighborhood_n_listings: 3,
+        // (4.7 x 2 rated + 5.0 x 1) / 3
+        canton_avg_rating: expect.closeTo(4.8, 9),
         amenities: ["HEATING", "KITCHEN", "WIFI"],
         amenities_score: 27,
         amenities_min: 0,
@@ -114,6 +120,16 @@ describeDb("listings repository against Postgres", () => {
 
       const heavy = await repo.getById(101, { missingMinPoint: 5 });
       expect(heavy.missing_amenities).toEqual(["AC", "PARKING", "WASHER"]);
+    });
+
+    test("returns the price baseline chosen for the listing, here its district", async () => {
+      expect(await repo.getById("103")).toMatchObject({
+        median_price: 80,
+        price_comparables: 7,
+        price_baseline_level: "district",
+        price_baseline_area: "Riviera-Pays-d'Enhaut",
+        capacity_band: "1-2",
+      });
     });
 
     test("still returns a listing that left Airbnb, flagged inactive", async () => {

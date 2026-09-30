@@ -17,7 +17,7 @@ sources          raw.airbnb_vaud, raw.airbnb_snapshots, raw.airbnb_amenities   (
 staging          stg_listings, stg_snapshots, stg_amenities, stg_price_observations      views
 intermediate     int_active_listings, int_listing_prices, int_listing_latest_snapshots    views
 marts            listing_activity, current_prices, airbnb_points,                         tables
-                 neighbourhood_room_type_stats, neighbourhood_stats, price_trends
+                 price_baselines, neighbourhood_room_type_stats, neighbourhood_stats, price_trends
 ```
 
 - **Staging**: one model per source, renamed and cleaned. `stg_snapshots`
@@ -53,7 +53,8 @@ skips the models downstream of a failure.
 - A singular test (`tests/price_trends_cover_a_period.sql`).
 - Unit tests of the business rules, on fixed input rows (in the model YAML
   files): broken scrape prices are dropped, the current price is the newest
-  one in the window, price trends never cross a change of price definition,
+  one in the window, a price is compared as locally as the data allows,
+  price trends never cross a change of price definition,
   a listing counts once in the stats window, a listing without review counts
   as 0 in the reviews baseline, and a listing stays active through one
   partial scrape but not two missed ones.

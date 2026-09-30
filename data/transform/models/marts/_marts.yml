@@ -86,6 +86,57 @@ models:
           - in_range:
               arguments: {min_value: 1, max_value: 100000}
 
+  - name: price_baselines
+    description: >
+      The prices each active listing's price is compared with: the average
+      and median current price of the listings of the same room type and
+      capacity band, in the neighbourhood when it has at least
+      min_price_comparables of them, else in the district, else in the
+      canton (the largest sample when no level has enough). Prices seen in
+      the last stats_window_months, one per listing.
+    columns:
+      - name: listing_id
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('int_active_listings')
+                field: listing_id
+      - name: level
+        description: Where the similar listings are, neighbourhood, district or canton.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["neighbourhood", "district", "canton"]
+      - name: area
+        description: Name of the neighbourhood or district, or Vaud for the canton.
+        data_tests: [not_null]
+      - name: capacity_band
+        description: Guests the listing hosts, 1-2, 3-4, 5-6, 7+ (or unknown).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["1-2", "3-4", "5-6", "7+", "unknown"]
+      - name: avg_price
+        description: Mean nightly price in CHF of the similar listings.
+      - name: median_price
+        description: Median nightly price in CHF of the similar listings.
+        data_tests:
+          - not_null
+          - in_range:
+              arguments:
+                min_value: "{{ var('min_nightly_price') }}"
+                max_value: "{{ var('max_nightly_price') }}"
+      - name: n_listings
+        description: Number of similar listings behind the median (the sample size).
+        data_tests:
+          - not_null
+          - in_range:
+              arguments: {min_value: 1, max_value: 100000}
+
   - name: neighbourhood_stats
     description: >
       Review baselines per neighbourhood, one row per listing seen in the
@@ -186,6 +237,47 @@ models:
         data_tests: [not_null]
 
 unit_tests:
+  - name: a_price_is_compared_as_locally_as_the_data_allows
+    description: >
+      With min_price_comparables at 2: listing 1 has 2 similar listings in
+      its neighbourhood (itself and 2), so it is compared there; listing 3,
+      alone in its neighbourhood, falls back to its district (listings 1, 2,
+      3); listing 5 hosts more guests, so it is compared with the other large
+      home only (listing 6, another district): only the canton has enough
+      listings. The hotel room (7) has no similar listing anywhere: it gets
+      the largest sample, the canton, flagged by its n_listings of 1. A
+      listing without a price (4) is compared too.
+    model: price_baselines
+    overrides:
+      vars: {min_price_comparables: 2}
+    given:
+      - input: ref('int_active_listings')
+        rows:
+          - {listing_id: 1, neighbourhood: "Montreux", neighbourhood_group: "Riviera", room_type: "Entire home/apt", accommodates: 2}
+          - {listing_id: 2, neighbourhood: "Montreux", neighbourhood_group: "Riviera", room_type: "Entire home/apt", accommodates: 1}
+          - {listing_id: 3, neighbourhood: "Vevey", neighbourhood_group: "Riviera", room_type: "Entire home/apt", accommodates: 2}
+          - {listing_id: 4, neighbourhood: "Vevey", neighbourhood_group: "Riviera", room_type: "Entire home/apt", accommodates: 2}
+          - {listing_id: 5, neighbourhood: "Vevey", neighbourhood_group: "Riviera", room_type: "Entire home/apt", accommodates: 6}
+          - {listing_id: 6, neighbourhood: "Nyon", neighbourhood_group: "Nyon", room_type: "Entire home/apt", accommodates: 5}
+          - {listing_id: 7, neighbourhood: "Montreux", neighbourhood_group: "Riviera", room_type: "Hotel room", accommodates: 2}
+      - input: ref('current_prices')
+        rows:
+          - {listing_id: 1, price: 100, price_date: "2026-09-10"}
+          - {listing_id: 2, price: 120, price_date: "2026-09-10"}
+          - {listing_id: 3, price: 140, price_date: "2026-09-10"}
+          - {listing_id: 5, price: 300, price_date: "2026-09-10"}
+          - {listing_id: 6, price: 400, price_date: "2026-09-10"}
+          - {listing_id: 7, price: 200, price_date: "2026-09-10"}
+    expect:
+      rows:
+        - {listing_id: 1, level: "neighbourhood", area: "Montreux", capacity_band: "1-2", median_price: 110, n_listings: 2}
+        - {listing_id: 2, level: "neighbourhood", area: "Montreux", capacity_band: "1-2", median_price: 110, n_listings: 2}
+        - {listing_id: 3, level: "district", area: "Riviera", capacity_band: "1-2", median_price: 120, n_listings: 3}
+        - {listing_id: 4, level: "district", area: "Riviera", capacity_band: "1-2", median_price: 120, n_listings: 3}
+        - {listing_id: 5, level: "canton", area: "Vaud", capacity_band: "5-6", median_price: 350, n_listings: 2}
+        - {listing_id: 6, level: "canton", area: "Vaud", capacity_band: "5-6", median_price: 350, n_listings: 2}
+        - {listing_id: 7, level: "canton", area: "Vaud", capacity_band: "1-2", median_price: 200, n_listings: 1}
+
   - name: price_trends_do_not_cross_a_price_definition_change
     description: >
       Between the first two scrapes every price goes up by 60%: Inside

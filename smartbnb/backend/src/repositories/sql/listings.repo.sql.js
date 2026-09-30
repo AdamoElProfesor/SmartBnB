@@ -130,16 +130,26 @@ exports.getById = async (
       act.is_active,
       cp.price,
       cp.price_date::text            AS price_date,
+      s.number_of_reviews,
       s.number_of_reviews_ltm,
-      s.reviews_per_month, 
+      s.reviews_per_month,
       s.review_scores_rating,
 
-      n.median_price,
-      n.avg_price,
-      n.count_airbnb,
+      -- Prices of the similar listings (same room type and capacity band),
+      -- in the neighbourhood, the district or the canton (price_baselines)
+      pb.median_price,
+      pb.avg_price,
+      pb.n_listings                  AS price_comparables,
+      pb.level                       AS price_baseline_level,
+      pb.area                        AS price_baseline_area,
+      pb.capacity_band,
       ns.avg_rating            AS neighborhood_avg_rating,
       ns.avg_reviews_per_month AS neighborhood_avg_reviews_per_month,
       ns.n_listings            AS neighborhood_n_listings,
+      -- Mean rating of the rated listings of the canton: the prior of the
+      -- score's Bayesian rating
+      (SELECT SUM(ns2.avg_rating * ns2.n_rated_listings) / NULLIF(SUM(ns2.n_rated_listings), 0)
+       FROM public.neighbourhood_stats ns2) AS canton_avg_rating,
 
       a.amenities,
       p.total_points                  AS amenities_score,
@@ -153,16 +163,7 @@ exports.getById = async (
     LEFT JOIN amen   a ON TRUE
     LEFT JOIN public.airbnb_points p ON p.airbnb_id = v.id
     LEFT JOIN public.neighbourhood_stats ns ON ns.neighbourhood = v.neighbourhood_cleansed
-    LEFT JOIN LATERAL (
-      SELECT
-        nrt.median_price,
-        nrt.avg_price,
-        nrt.count_airbnb
-      FROM public.neighbourhood_room_type_stats nrt
-      WHERE nrt.neighbourhood = v.neighbourhood_cleansed
-        AND nrt.room_type     = v.room_type
-      LIMIT 1
-    ) n ON TRUE
+    LEFT JOIN public.price_baselines pb ON pb.listing_id = v.id
     LEFT JOIN LATERAL (
       SELECT array_agg(mm.name ORDER BY mm.point DESC, mm.name) AS missing_amenities
       FROM (

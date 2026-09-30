@@ -70,6 +70,13 @@ VALUES
   ('Lausanne', 'Private room',    70,    70,  5),
   ('Montreux', 'Private room',    82,    80,  1);
 
+-- 101 is compared in its neighbourhood, 103 falls back to its district
+INSERT INTO public.price_baselines
+  (listing_id, level, area, capacity_band, avg_price, median_price, n_listings)
+VALUES
+  (101, 'neighbourhood', 'Lausanne', '3-4', 145.5, 140, 12),
+  (103, 'district', 'Riviera-Pays-d''Enhaut', '1-2', 82, 80, 7);
+
 INSERT INTO public.neighbourhood_stats
   (neighbourhood, avg_reviews_per_month, avg_rating, n_listings, n_rated_listings)
 VALUES

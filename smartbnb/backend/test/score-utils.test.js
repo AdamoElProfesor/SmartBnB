@@ -5,7 +5,10 @@ const base = {
   price: 100,
   median_price: 100,
   avg_price: 100,
-  count_airbnb: 40,
+  price_comparables: 40,
+  price_baseline_level: "neighbourhood",
+  price_baseline_area: "Lausanne",
+  capacity_band: "3-4",
   host_is_superhost: false,
   amenities_score: 30,
   amenities_min: 0,
@@ -18,7 +21,7 @@ const base = {
 
 // Only one part counts, so the score is that part's value x 100
 const only = (part) => ({
-  weights: { price: 0, reviews: 0, amenities: 0, superhost: 0, [part]: 1 },
+  weights: { price: 0, reviews: 0, rating: 0, amenities: 0, superhost: 0, [part]: 1 },
 });
 const partOf = (result, name) => result.parts.find((p) => p.part === name);
 
@@ -59,16 +62,19 @@ describe("score.utils price part", () => {
   });
 
   test("flags a median built on fewer than 5 listings", () => {
-    expect(partOf(computeSmartScore({ ...base, count_airbnb: 4 }), "price").status).toBe("low_sample");
-    expect(partOf(computeSmartScore({ ...base, count_airbnb: 5 }), "price").status).toBe("ok");
+    expect(partOf(computeSmartScore({ ...base, price_comparables: 4 }), "price").status).toBe("low_sample");
+    expect(partOf(computeSmartScore({ ...base, price_comparables: 5 }), "price").status).toBe("ok");
   });
 
-  test("returns the price, the neighbourhood prices and the sample size", () => {
+  test("returns the price, the prices of the similar listings, where they are and how many", () => {
     expect(partOf(computeSmartScore(base), "price").inputs).toEqual({
       price: 100,
       median_price: 100,
       avg_price: 100,
       comparables: 40,
+      level: "neighbourhood",
+      area: "Lausanne",
+      capacity_band: "3-4",
     });
   });
 });
@@ -111,6 +117,51 @@ describe("score.utils reviews part", () => {
   });
 });
 
+describe("score.utils rating part", () => {
+  const rated = (rating, reviews) => ({ ...base, review_scores_rating: rating, number_of_reviews: reviews, canton_avg_rating: 4.8 });
+
+  test.each([
+    [5.0, 1000, 100], // many reviews: its own rating, full points
+    [4.75, 1000, 50],
+    [4.4, 1000, 0], // an adjusted 4.5 or less gives no point
+    [2.0, 1000, 0],
+  ])("a rating of %f from %i reviews gives %i", (rating, reviews, expected) => {
+    expect(computeSmartScore(rated(rating, reviews), only("rating")).score).toBe(expected);
+  });
+
+  test("few reviews are pulled towards the canton's mean rating", () => {
+    // (2 x 5.0 + 10 x 4.8) / 12 = 4.83: a perfect score from 2 guests is not a proof
+    const fewPerfect = computeSmartScore(rated(5.0, 2), only("rating"));
+    expect(partOf(fewPerfect, "rating").inputs).toEqual({
+      rating: 5,
+      number_of_reviews: 2,
+      adjusted_rating: 4.83,
+      area_rating: 4.8,
+    });
+    expect(fewPerfect.score).toBe(67);
+    // (6 x 2.0 + 10 x 4.8) / 16 = 3.75: a bad rating from 6 guests still sinks it
+    expect(computeSmartScore(rated(2.0, 6), only("rating")).score).toBe(0);
+  });
+
+  test("a listing rated 2/5 by many guests loses the whole part", () => {
+    const good = computeSmartScore(rated(4.9, 200));
+    const bad = computeSmartScore(rated(2.0, 200));
+    expect(partOf(good, "rating").points).toBe(12);
+    expect(partOf(bad, "rating").points).toBe(0);
+    expect(good.score - bad.score).toBe(12);
+  });
+
+  test("without a rating it counts as the canton's mean, and says so", () => {
+    const r = computeSmartScore({ ...base, canton_avg_rating: 4.8 }, only("rating"));
+    expect(r.score).toBe(60);
+    expect(partOf(r, "rating").status).toBe("neutral_missing_data");
+  });
+
+  test("without a rating nor a mean it is neutral", () => {
+    expect(computeSmartScore(base, only("rating")).score).toBe(50);
+  });
+});
+
 describe("score.utils amenities part", () => {
   test("places the listing between the least and the best equipped", () => {
     const r = computeSmartScore({ ...base, amenities_score: 30, amenities_min: 10, amenities_max: 50 }, only("amenities"));
@@ -143,7 +194,8 @@ describe("score.utils parts", () => {
     const r = computeSmartScore(base);
     expect(r.parts.map((p) => [p.part, p.max])).toEqual([
       ["price", 45],
-      ["reviews", 30],
+      ["reviews", 15],
+      ["rating", 15],
       ["amenities", 15],
       ["superhost", 10],
     ]);
@@ -156,13 +208,16 @@ describe("score.utils parts", () => {
       reviews_per_month: 5,
       amenities_score: 55,
       host_is_superhost: true,
+      review_scores_rating: 5,
+      number_of_reviews: 10000,
+      canton_avg_rating: 4.8,
     });
     expect(r.score).toBe(100);
-    expect(r.parts.map((p) => p.points)).toEqual([45, 30, 15, 10]);
+    expect(r.parts.map((p) => p.points)).toEqual([45, 15, 15, 15, 10]);
   });
 
   test("the total is rounded to the nearest point", () => {
-    // 0.45 x 0.6 + 0.3 x 0.5 + 0.15 x 30/55 = 0.5018
+    // 0.45 x 0.6 + 0.15 x 0.5 + 0.15 x 0.5 (no rating) + 0.15 x 30/55 = 0.5018
     expect(computeSmartScore(base).score).toBe(50);
   });
 
@@ -186,9 +241,10 @@ describe("score.utils parts", () => {
 
   test("a listing with every value missing still scores, and says why", () => {
     const r = computeSmartScore({ id: "1" });
-    // Price, reviews and amenities neutral (half their points), not a Superhost
+    // Price, reviews, rating and amenities neutral (half their points), not a Superhost
     expect(r.score).toBe(45);
     expect(r.parts.map((p) => p.status)).toEqual([
+      "neutral_missing_data",
       "neutral_missing_data",
       "neutral_missing_data",
       "neutral_missing_data",

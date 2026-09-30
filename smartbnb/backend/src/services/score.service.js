@@ -146,6 +146,16 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
     price_date: listing.price_date ?? null,
     median_price: listing.median_price,
     avg_price: listing.avg_price,
+    // What median_price is measured on (price_baselines)
+    price_baseline: listing.price_baseline_level
+      ? {
+          level: listing.price_baseline_level,
+          area: listing.price_baseline_area,
+          capacity_band: listing.capacity_band,
+          n_listings: listing.price_comparables ?? null,
+        }
+      : null,
+    number_of_reviews: listing.number_of_reviews ?? null,
     rating: listing.review_scores_rating,
     neighborhood_avg_rating: listing.neighborhood_avg_rating ?? null,
     reviews_per_month: listing.reviews_per_month ?? null,
