@@ -41,7 +41,7 @@ price_observations ───────────────────┐ 
 | `neighbourhood_stats` | Review baselines per neighbourhood: overall rating, reviews per month, sample sizes (see [Metrics](#metrics)) |
 | `listing_activity` | Lifetime of each listing (first and last seen) and whether it is still on Airbnb (see [Metrics](#metrics)) |
 | `current_prices` | Latest plausible price per active listing (last 6 months) |
-| `price_trends` | Median price change per region over the last 12 months (the site's "Prices this year") |
+| `price_trends` | Median price change per region of the same listings over the last 12 months, within one price definition (the site's "Price trends") |
 | `etl_runs` | One row per run of `pipeline.py`: metrics and quality check results |
 | `ai_analyses` | Cache of the AI analysis per listing, data version, model and language (filled by the backend) |
 
@@ -140,6 +140,19 @@ one more month at most. The audit warns when more than 10% of the active
 listings are missing from the latest scrape, the sign of a partial file.
 `price_trends` is the exception: it compares past scrapes, so it counts the
 listings active at the time.
+
+**Price trends.** Inside Airbnb changed how it reports prices between the
+November 2025 and March 2026 scrapes: the same listings went up by a median
+34% in one step and only 0.7% kept their price, while from one month to the
+next the median listing does not move and 20 to 70% of the prices stay the
+same. The old trend compared the median of all listings across that step and
+showed every district at +30% to +65%. `price_trends` now compares like with
+like: only the listings priced at both dates (a panel, so listings joining or
+leaving do not move it), the median of their own price changes (robust to a
+few extreme prices), and never across a change of definition, detected as a
+step where the same listings move by more than 25% (`price_break_ratio`). In
+September 2026 that gives March to September 2026, about +1.5% per district.
+A district needs 20 such listings (`min_trend_listings`).
 
 | Metric | Definition | Grain | Window | Empty values |
 | --- | --- | --- | --- | --- |
@@ -263,6 +276,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-30-baseline-columns.sql` | Expand step of #49: `neighbourhood_stats.avg_rating`, `n_listings`, `n_rated_listings` and `current_prices.source` |
 | `2026-09-30-listing-activity.sql` | `listing_activity` table (#47), with its row level security, grants and policies |
 | `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
+| `2026-09-30-price-trends-panel.sql` | `price_trends` on the same listings (#17): `start_median` and `end_median` dropped, `n_listings` added, the table emptied until the next run |
 
 A column that changes name goes through **expand / contract**, so the site
 keeps working at every step: the expand migration adds the new column, the
