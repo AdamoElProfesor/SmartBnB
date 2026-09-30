@@ -38,24 +38,50 @@ function rememberFailure(flightKey) {
 }
 
 /**
+ * The cached analysis of a listing, or null. Never calls the AI.
+ * A cache read error counts as a miss.
+ * @param {{ listingId: string, model: string, dataVersion: string, lang: string }} cacheKey
+ * @returns {Promise<{ pros: string[], cons: string[], summary: string }|null>}
+ */
+async function cachedAnalysis(cacheKey) {
+  try {
+    return (await repo.aiAnalyses.get(cacheKey)) || null;
+  } catch (e) {
+    console.error("[score] analysis cache read failed:", e.message);
+    return null;
+  }
+}
+
+/**
  * AI analysis for a listing, read from the ai_analyses cache when present.
  * Only non-empty analyses are stored; after a failed call the listing is not
  * sent to the AI again for FAILURE_TTL_MS.
- * A cache read or write error never fails the score: it falls back to the AI.
+ * A cache read or write error never fails the analysis: it falls back to the AI.
+ * Logs how long each analysis took, so the real wait of visitors is known.
  * @param {{ listing: object, smartScore: number, lang: string }} input
  * @returns {Promise<{ analysis: { pros: string[], cons: string[], summary: string }, cached: boolean }>}
  */
 async function getAnalysis(input) {
+  const started = Date.now();
+  const out = await analysisFromCacheOrAI(input);
+  console.log(
+    `[score] analysis listing=${input.listing.id} lang=${input.lang} cached=${out.cached}` +
+      ` ok=${isNonEmptyAnalysis(out.analysis)} ms=${Date.now() - started}`
+  );
+  return out;
+}
+
+/**
+ * @param {{ listing: object, smartScore: number, lang: string }} input
+ * @returns {Promise<{ analysis: { pros: string[], cons: string[], summary: string }, cached: boolean }>}
+ */
+async function analysisFromCacheOrAI(input) {
   const key = analysisCacheKey(input);
   if (!key) return { analysis: await chatProsCons(input), cached: false };
 
   const cacheKey = { listingId: String(input.listing.id), ...key };
-  try {
-    const hit = await repo.aiAnalyses.get(cacheKey);
-    if (hit) return { analysis: hit, cached: true };
-  } catch (e) {
-    console.error("[score] analysis cache read failed:", e.message);
-  }
+  const hit = await cachedAnalysis(cacheKey);
+  if (hit) return { analysis: hit, cached: true };
 
   const flightKey = `${cacheKey.listingId}|${key.dataVersion}|${key.model}|${key.lang}`;
   if (inFlight.has(flightKey)) {
@@ -89,10 +115,13 @@ async function getAnalysis(input) {
 exports._resetFailures = () => recentFailures.clear();
 
 /**
- * Compute SmartBnB score from an Airbnb URL, with the AI analysis in the given language
+ * Compute SmartBnB score from an Airbnb URL. It never waits for the AI: the
+ * analysis in the given language comes with it only when it is already
+ * cached; otherwise analysis_pending tells the client to ask for it with
+ * analyzeListing (POST /api/score/analysis).
  * @param {string} airbnbUrl
  * @param {{ lang?: string }} [options]
- * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, active?: boolean, last_seen?: string|null, smart_score?: number|null, breakdown?: Array<object>|null, listing?: object, analysis?: object|null }>}
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, active?: boolean, last_seen?: string|null, smart_score?: number|null, breakdown?: Array<object>|null, listing?: object, analysis?: object|null, analysis_cached?: boolean, analysis_pending?: boolean }>}
  */
 exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
   const { id, shortLink } = await urlResolver.resolveListingId(String(airbnbUrl || ""));
@@ -139,11 +168,14 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
       listing: listingSummary,
       analysis: null,
       analysis_cached: false,
+      analysis_pending: false,
     };
   }
 
   const score = computeSmartScore(listing);
-  const { analysis, cached } = await getAnalysis({ listing, smartScore: score.score, lang });
+  // Without an AI configured there is no analysis to wait for
+  const key = analysisCacheKey({ listing, smartScore: score.score, lang });
+  const analysis = key ? await cachedAnalysis({ listingId: String(listing.id), ...key }) : null;
 
   return {
     ok: true,
@@ -153,6 +185,27 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
     breakdown: score.parts,
     listing: listingSummary,
     analysis,
-    analysis_cached: cached,
+    analysis_cached: analysis !== null,
+    analysis_pending: key !== null && analysis === null,
   };
+};
+
+/**
+ * AI analysis of a listing in the given language: from the cache, or written
+ * by the AI (this is the call that spends the AI quota). An AI failure gives
+ * an empty analysis, not an error. A listing that left Airbnb gets none.
+ * @param {string} listingId
+ * @param {{ lang?: string }} [options]
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, analysis?: object|null, analysis_cached?: boolean }>}
+ */
+exports.analyzeListing = async (listingId, { lang = DEFAULT_LANG } = {}) => {
+  const listing = await repo.listings.getById(String(listingId));
+  if (!listing) return { ok: false, error: "Listing not found" };
+  if (listing.is_active === false) {
+    return { ok: true, listing_id: String(listingId), analysis: null, analysis_cached: false };
+  }
+
+  const score = computeSmartScore(listing);
+  const { analysis, cached } = await getAnalysis({ listing, smartScore: score.score, lang });
+  return { ok: true, listing_id: String(listingId), analysis, analysis_cached: cached };
 };

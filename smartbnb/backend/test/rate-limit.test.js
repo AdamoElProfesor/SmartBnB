@@ -2,6 +2,7 @@ const request = require("supertest");
 
 jest.mock("../src/services/score.service", () => ({
   computeFromUrl: jest.fn(),
+  analyzeListing: jest.fn(),
 }));
 
 jest.mock("../src/config/db_sql", () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }));
@@ -10,7 +11,7 @@ const WORKER_IP ="2a06:98c0:3600::103";
 
 /**
  * Fresh app (and fresh limiter counters) for each test
- * @returns {{ app: import('express').Application, scoreService: { computeFromUrl: jest.Mock } }}
+ * @returns {{ app: import('express').Application, scoreService: { computeFromUrl: jest.Mock, analyzeListing: jest.Mock } }}
  */
 function loadApp() {
   let app;
@@ -20,16 +21,45 @@ function loadApp() {
     app = require("../src/server");
   });
   scoreService.computeFromUrl.mockResolvedValue({ ok: true, listing_id: "1", smart_score: 50 });
+  scoreService.analyzeListing.mockResolvedValue({ ok: true, listing_id: "1", analysis: null });
   return { app, scoreService };
 }
 
+// The AI analysis spends the shared daily quota: it has the strict limits
 function score(app, headers = {}) {
+  const req = request(app).post("/api/score/analysis");
+  for (const [k, v] of Object.entries(headers)) req.set(k, v);
+  return req.send({ listingId: "1" });
+}
+
+function check(app, headers = {}) {
   const req = request(app).post("/api/score");
   for (const [k, v] of Object.entries(headers)) req.set(k, v);
   return req.send({ airbnbUrl: "https://www.airbnb.ch/rooms/1" });
 }
 
 describe("POST /api/score rate limiting", () => {
+  test("allows 30 checks a minute per IP: the score spends no AI quota", async () => {
+    const { app, scoreService } = loadApp();
+    const ip = { "cf-connecting-ip": "203.0.113.20" };
+    for (let i = 0; i < 30; i++) {
+      expect((await check(app, ip)).status).toBe(200);
+    }
+    const res = await check(app, ip);
+    expect(res.status).toBe(429);
+    expect(res.body.error).toMatch(/wait a minute/);
+    expect(scoreService.computeFromUrl).toHaveBeenCalledTimes(30);
+  });
+
+  test("checking listings does not use up the analysis limit", async () => {
+    const { app } = loadApp();
+    const ip = { "cf-connecting-ip": "203.0.113.21" };
+    for (let i = 0; i < 20; i++) await check(app, ip);
+    expect((await score(app, ip)).status).toBe(200);
+  });
+});
+
+describe("POST /api/score/analysis rate limiting", () => {
   afterEach(() => {
     delete process.env.RELAY_SECRET;
   });
@@ -45,7 +75,7 @@ describe("POST /api/score rate limiting", () => {
     expect(res.headers["content-type"]).toMatch(/json/);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toMatch(/wait a minute/);
-    expect(scoreService.computeFromUrl).toHaveBeenCalledTimes(10);
+    expect(scoreService.analyzeListing).toHaveBeenCalledTimes(10);
 
     // Another visitor is not affected
     expect((await score(app, { "cf-connecting-ip": "198.51.100.9" })).status).toBe(200);

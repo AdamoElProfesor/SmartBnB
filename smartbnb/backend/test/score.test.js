@@ -2,6 +2,7 @@ const request = require("supertest");
 
 jest.mock("../src/services/score.service", () => ({
   computeFromUrl: jest.fn(),
+  analyzeListing: jest.fn(),
 }));
 
 const scoreService = require("../src/services/score.service");
@@ -147,5 +148,36 @@ describe("Score endpoints", () => {
       .send({ airbnbUrl: "https://airbnb.com/rooms/0" });
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ ok: false, error: "Listing not found" });
+  });
+
+  test("POST /score/analysis returns the analysis in the requested language", async () => {
+    const out = { ok: true, listing_id: "53584592", analysis: { pros: ["Calme"], cons: [], summary: "" }, analysis_cached: false };
+    scoreService.analyzeListing.mockResolvedValue(out);
+    const response = await request(app).post("/api/score/analysis").send({ listingId: "53584592", lang: "fr" });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(out);
+    expect(scoreService.analyzeListing).toHaveBeenCalledWith("53584592", { lang: "fr" });
+  });
+
+  test("POST /score/analysis accepts a numeric id and defaults to English", async () => {
+    scoreService.analyzeListing.mockResolvedValue({ ok: true, listing_id: "1", analysis: null });
+    await request(app).post("/api/score/analysis").send({ listingId: 1 });
+    expect(scoreService.analyzeListing).toHaveBeenCalledWith("1", { lang: "en" });
+  });
+
+  test.each([[undefined], ["abc"], ["https://www.airbnb.ch/rooms/1"], [["1"]], [1.5]])(
+    "POST /score/analysis returns 400 for the listing id %j",
+    async (listingId) => {
+      const response = await request(app).post("/api/score/analysis").send({ listingId });
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ ok: false, error: "Invalid listing id" });
+      expect(scoreService.analyzeListing).not.toHaveBeenCalled();
+    }
+  );
+
+  test("POST /score/analysis returns 404 for a listing outside our data", async () => {
+    scoreService.analyzeListing.mockResolvedValue({ ok: false, error: "Listing not found" });
+    const response = await request(app).post("/api/score/analysis").send({ listingId: "1" });
+    expect(response.status).toBe(404);
   });
 });

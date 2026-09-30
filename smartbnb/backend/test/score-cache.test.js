@@ -39,23 +39,57 @@ describe("score.service analysis cache", () => {
     ai.analysisCacheKey.mockReturnValue(KEY);
   });
 
-  test("a cache hit skips the AI call", async () => {
+  test("the score comes with the analysis when it is cached", async () => {
     repo.aiAnalyses.get.mockResolvedValue(analysis);
     const out = await service.computeFromUrl("https://www.airbnb.ch/rooms/53584592");
     expect(out.ok).toBe(true);
-    expect(out.analysis).toEqual(analysis);
-    expect(out.analysis_cached).toBe(true);
+    expect(out).toMatchObject({ analysis, analysis_cached: true, analysis_pending: false });
     expect(repo.aiAnalyses.get).toHaveBeenCalledWith({ listingId: "53584592", ...KEY });
     expect(ai.chatProsCons).not.toHaveBeenCalled();
     expect(repo.aiAnalyses.save).not.toHaveBeenCalled();
   });
 
-  test("a cache miss calls the AI once and stores the analysis", async () => {
+  test("the score never waits for the AI: a missing analysis is pending", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(null);
+    const out = await service.computeFromUrl("53584592");
+    expect(typeof out.smart_score).toBe("number");
+    expect(out).toMatchObject({ analysis: null, analysis_cached: false, analysis_pending: true });
+    expect(ai.chatProsCons).not.toHaveBeenCalled();
+  });
+
+  test("a cache read error only makes the analysis pending", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    repo.aiAnalyses.get.mockRejectedValue(new Error("relation does not exist"));
+    const out = await service.computeFromUrl("53584592");
+    expect(out).toMatchObject({ ok: true, analysis: null, analysis_pending: true });
+    console.error.mockRestore();
+  });
+
+  test("without an AI configured nothing is pending and the cache is not read", async () => {
+    ai.analysisCacheKey.mockReturnValue(null);
+    const out = await service.computeFromUrl("53584592");
+    expect(out).toMatchObject({ analysis: null, analysis_pending: false });
+    expect(repo.aiAnalyses.get).not.toHaveBeenCalled();
+  });
+
+  test("the language defaults to English", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(analysis);
+    await service.computeFromUrl("53584592");
+    expect(ai.analysisCacheKey).toHaveBeenCalledWith(expect.objectContaining({ lang: "en" }));
+  });
+
+  test("analyzeListing reads a cached analysis without calling the AI", async () => {
+    repo.aiAnalyses.get.mockResolvedValue(analysis);
+    const out = await service.analyzeListing("53584592");
+    expect(out).toEqual({ ok: true, listing_id: "53584592", analysis, analysis_cached: true });
+    expect(ai.chatProsCons).not.toHaveBeenCalled();
+  });
+
+  test("analyzeListing calls the AI once on a miss and stores the analysis", async () => {
     repo.aiAnalyses.get.mockResolvedValue(null);
     ai.chatProsCons.mockResolvedValue(analysis);
-    const out = await service.computeFromUrl("53584592");
-    expect(out.analysis).toEqual(analysis);
-    expect(out.analysis_cached).toBe(false);
+    const out = await service.analyzeListing("53584592");
+    expect(out).toMatchObject({ analysis, analysis_cached: false });
     expect(ai.chatProsCons).toHaveBeenCalledTimes(1);
     expect(repo.aiAnalyses.save).toHaveBeenCalledWith({ listingId: "53584592", ...KEY, analysis });
   });
@@ -65,42 +99,36 @@ describe("score.service analysis cache", () => {
     ai.analysisCacheKey.mockReturnValue(french);
     repo.aiAnalyses.get.mockResolvedValue(null);
     ai.chatProsCons.mockResolvedValue(analysis);
-    await service.computeFromUrl("53584592", { lang: "fr" });
+    await service.analyzeListing("53584592", { lang: "fr" });
     expect(ai.analysisCacheKey).toHaveBeenCalledWith(expect.objectContaining({ lang: "fr" }));
     expect(ai.chatProsCons).toHaveBeenCalledWith(expect.objectContaining({ lang: "fr" }));
     expect(repo.aiAnalyses.get).toHaveBeenCalledWith({ listingId: "53584592", ...french });
     expect(repo.aiAnalyses.save).toHaveBeenCalledWith({ listingId: "53584592", ...french, analysis });
   });
 
-  test("the language defaults to English", async () => {
-    repo.aiAnalyses.get.mockResolvedValue(analysis);
-    await service.computeFromUrl("53584592");
-    expect(ai.analysisCacheKey).toHaveBeenCalledWith(expect.objectContaining({ lang: "en" }));
-  });
-
-  test("an empty analysis is not stored", async () => {
+  test("an AI failure gives an empty analysis, which is not stored", async () => {
     repo.aiAnalyses.get.mockResolvedValue(null);
     ai.chatProsCons.mockResolvedValue({ pros: [], cons: [], summary: "" });
-    const out = await service.computeFromUrl("53584592");
-    expect(out.ok).toBe(true);
+    const out = await service.analyzeListing("53584592");
+    expect(out).toMatchObject({ ok: true, analysis: { pros: [], cons: [], summary: "" } });
     expect(repo.aiAnalyses.save).not.toHaveBeenCalled();
   });
 
   test("after an empty analysis the listing is not sent to the AI again for a while", async () => {
     repo.aiAnalyses.get.mockResolvedValue(null);
     ai.chatProsCons.mockResolvedValue({ pros: [], cons: [], summary: "" });
-    await service.computeFromUrl("53584592");
-    const out = await service.computeFromUrl("53584592");
+    await service.analyzeListing("53584592");
+    const out = await service.analyzeListing("53584592");
     expect(out.ok).toBe(true);
     expect(out.analysis).toEqual({ pros: [], cons: [], summary: "" });
     expect(ai.chatProsCons).toHaveBeenCalledTimes(1);
   });
 
-  test("parallel checks of one listing share a single AI call", async () => {
+  test("parallel requests for one listing share a single AI call", async () => {
     repo.aiAnalyses.get.mockResolvedValue(null);
     let resolve;
     ai.chatProsCons.mockReturnValue(new Promise((r) => (resolve = r)));
-    const both = Promise.all([service.computeFromUrl("53584592"), service.computeFromUrl("53584592")]);
+    const both = Promise.all([service.analyzeListing("53584592"), service.analyzeListing("53584592")]);
     await new Promise((r) => setImmediate(r));
     resolve(analysis);
     const [a, b] = await both;
@@ -115,17 +143,18 @@ describe("score.service analysis cache", () => {
     repo.aiAnalyses.get.mockRejectedValue(new Error("relation does not exist"));
     repo.aiAnalyses.save.mockRejectedValue(new Error("relation does not exist"));
     ai.chatProsCons.mockResolvedValue(analysis);
-    const out = await service.computeFromUrl("53584592");
+    const out = await service.analyzeListing("53584592");
     expect(out.ok).toBe(true);
     expect(out.analysis).toEqual(analysis);
     console.error.mockRestore();
   });
 
-  test("without an AI configured the cache is not used", async () => {
-    ai.analysisCacheKey.mockReturnValue(null);
-    ai.chatProsCons.mockResolvedValue({ pros: [], cons: [], summary: "" });
-    await service.computeFromUrl("53584592");
-    expect(repo.aiAnalyses.get).not.toHaveBeenCalled();
+  test("analyzeListing never sends a listing that left Airbnb, nor an unknown one", async () => {
+    repo.listings.getById.mockResolvedValue({ ...listing, is_active: false });
+    expect(await service.analyzeListing("53584592")).toMatchObject({ ok: true, analysis: null });
+    repo.listings.getById.mockResolvedValue(null);
+    expect(await service.analyzeListing("1")).toEqual({ ok: false, error: "Listing not found" });
+    expect(ai.chatProsCons).not.toHaveBeenCalled();
   });
 
   test("a listing that left Airbnb is not scored and never reaches the AI", async () => {

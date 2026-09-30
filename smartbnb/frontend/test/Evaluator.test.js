@@ -77,6 +77,53 @@ describe("Evaluator", () => {
     expect(wrapper.findAll(".parts li.neutral")).toHaveLength(1);
   });
 
+  test("shows the score at once, then the analysis when it is written", async () => {
+    let answer;
+    apiPost.mockImplementation((path) =>
+      path === "/score"
+        ? Promise.resolve({ ...RESULT, analysis: null, analysis_pending: true })
+        : new Promise((resolve) => (answer = resolve))
+    );
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    expect(wrapper.text()).toContain("72/100");
+    expect(wrapper.find(".analysis").text()).toContain("Writing a short analysis");
+    expect(apiPost).toHaveBeenLastCalledWith("/score/analysis", { listingId: "53584592", lang: "en" });
+
+    answer({ ok: true, listing_id: "53584592", analysis: { pros: ["Lake view"], cons: [], summary: "A good deal." } });
+    await flushPromises();
+    expect(wrapper.find(".analysis").text()).toContain("Lake view");
+    expect(wrapper.find(".analysis").text()).not.toContain("Writing a short analysis");
+  });
+
+  test("an AI failure leaves the score and shows a quiet message", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    apiPost.mockImplementation((path) =>
+      path === "/score"
+        ? Promise.resolve({ ...RESULT, analysis: null, analysis_pending: true })
+        : Promise.reject(Object.assign(new Error("429"), { status: 429 }))
+    );
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    expect(wrapper.text()).toContain("72/100");
+    expect(wrapper.find(".analysis").text()).toContain("not available right now");
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  test("without an AI configured there is no analysis block", async () => {
+    apiPost.mockResolvedValue({ ...RESULT, analysis: null, analysis_pending: false });
+    const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
+
+    await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
+
+    expect(wrapper.find(".analysis").exists()).toBe(false);
+    expect(apiPost).not.toHaveBeenCalledWith("/score/analysis", expect.anything());
+  });
+
   test("shows the message for a listing outside our data", async () => {
     apiPost.mockRejectedValue(Object.assign(new Error("404 Not Found"), { status: 404 }));
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -114,12 +161,17 @@ describe("Evaluator", () => {
     const wrapper = mount(Evaluator, { global: { stubs: { DemoVideo: true } } });
     await check(wrapper, "https://www.airbnb.ch/rooms/53584592");
 
-    const french = { ...RESULT, analysis: { pros: ["Vue sur le lac"], cons: [], summary: "Une bonne affaire." } };
-    apiPost.mockResolvedValue(french);
+    apiPost.mockResolvedValue({
+      ok: true,
+      listing_id: "53584592",
+      analysis: { pros: ["Vue sur le lac"], cons: [], summary: "Une bonne affaire." },
+    });
     locale.value = "fr";
     await flushPromises();
 
-    expect(apiPost).toHaveBeenLastCalledWith("/score", { airbnbUrl: "53584592", lang: "fr" });
+    // Only the analysis is asked again: the score does not depend on the language
+    expect(apiPost).toHaveBeenLastCalledWith("/score/analysis", { listingId: "53584592", lang: "fr" });
+    expect(apiPost).not.toHaveBeenCalledWith("/score", expect.objectContaining({ lang: "fr" }));
     const text = wrapper.text();
     expect(text).toContain("À réserver");
     expect(text).toContain("20% en dessous de la médiane pour un logement entier à Montreux.");

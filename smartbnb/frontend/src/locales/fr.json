@@ -106,7 +106,9 @@
     "analysisTitle": "Ce qui ressort",
     "strengths": "Points forts",
     "watchOut": "Points d'attention",
-    "aiNote": "Rédigé par un modèle d'IA à partir des chiffres de cette annonce. Il peut se tromper."
+    "aiNote": "Rédigé par un modèle d'IA à partir des chiffres de cette annonce. Il peut se tromper.",
+    "analysisLoading": "Rédaction d'une courte analyse…",
+    "analysisFailed": "L'analyse rédigée n'est pas disponible pour le moment. Le score ci-dessus n'en dépend pas."
   },
   "verdict": {
     "good": {
