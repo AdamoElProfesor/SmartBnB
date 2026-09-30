@@ -3,7 +3,12 @@ const DEFAULTS = {
   priceBands: { goodRatio: 0.8, badRatio: 1.3 },
   reviewsBands: { lowRatio: 0.5, highRatio: 1.5 },
   amenitiesNorm: "listing-db",
+  // A baseline built on fewer listings is shown as a small sample
+  minComparables: 5,
 };
+
+// Order of the parts in the breakdown
+const PARTS = ["price", "reviews", "amenities", "superhost"];
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const isNum = (x) => x != null && Number.isFinite(Number(x));
@@ -185,6 +190,107 @@ function reviewsComponent(listing, cfg) {
 }
 
 /**
+ * Whole points of each part, adding up exactly to the rounded total: each part
+ * gets the floor of its exact points, and the points left go to the parts with
+ * the largest remainders (largest remainder method). A part never exceeds its max.
+ * @param {number[]} exact points of each part, unrounded
+ * @param {number} total rounded score
+ * @returns {number[]}
+ */
+function allocatePoints(exact, total) {
+  const points = exact.map(Math.floor);
+  let left = total - points.reduce((a, b) => a + b, 0);
+  const byRemainder = exact
+    .map((x, i) => ({ i, r: x - Math.floor(x) }))
+    .sort((a, b) => b.r - a.r || a.i - b.i);
+  for (const { i } of byRemainder) {
+    if (left <= 0) break;
+    points[i] += 1;
+    left -= 1;
+  }
+  return points;
+}
+
+/**
+ * Whether a part could be measured: neutral_missing_data when it fell back to
+ * the middle value (0.5) for lack of data, low_sample when its neighbourhood
+ * baseline rests on fewer than minComparables listings, ok otherwise
+ * @param {string} part
+ * @param {object} listing
+ * @param {{score:number, detail:Object}} comp
+ * @returns {"ok"|"neutral_missing_data"|"low_sample"}
+ */
+function partStatus(part, listing, comp) {
+  const small = (n) => isNum(n) && Number(n) < DEFAULTS.minComparables;
+  if (part === "price") {
+    const d = comp.detail;
+    if (d.reason === "missing_price" || (d.score_median == null && d.score_avg == null)) {
+      return "neutral_missing_data";
+    }
+    return small(listing?.count_airbnb) ? "low_sample" : "ok";
+  }
+  if (part === "reviews") {
+    if (comp.detail.ratio_vs_neighborhood == null) return "neutral_missing_data";
+    return small(listing?.neighborhood_n_listings) ? "low_sample" : "ok";
+  }
+  if (part === "amenities") {
+    return comp.detail.normalization === "listing-db" ? "ok" : "neutral_missing_data";
+  }
+  return "ok";
+}
+
+/**
+ * The plain values behind each part, for the visitor
+ * @param {string} part
+ * @param {object} listing
+ * @param {{score:number, detail:Object}} comp
+ * @returns {Object}
+ */
+function partInputs(part, listing, comp) {
+  const num = (x) => (isNum(x) ? Number(x) : null);
+  const d = comp.detail;
+  if (part === "price") {
+    return {
+      price: num(listing?.price),
+      median_price: num(listing?.median_price),
+      avg_price: num(listing?.avg_price),
+      comparables: num(listing?.count_airbnb),
+    };
+  }
+  if (part === "reviews") {
+    return {
+      reviews_per_month: d.reviews_per_month,
+      area_reviews_per_month: d.neighborhood_avg_reviews_per_month,
+      comparables: num(listing?.neighborhood_n_listings),
+    };
+  }
+  if (part === "amenities") return { amenities_score: d.amenities_score, min: d.min, max: d.max };
+  return { host_is_superhost: d.host_is_superhost };
+}
+
+/**
+ * Points earned by each part out of its max (its weight x 100), with its
+ * status and inputs, in PARTS order. The points add up to the score.
+ * @param {object} listing
+ * @param {Record<string, {score:number, detail:Object}>} comps
+ * @param {Record<string, number>} weights
+ * @param {number} score
+ * @returns {Array<{ part: string, points: number, max: number, status: string, inputs: Object }>}
+ */
+function scoreParts(listing, comps, weights, score) {
+  const weightOf = (part) => (isNum(weights[part]) ? Number(weights[part]) : 0);
+  const exact = PARTS.map((part) => weightOf(part) * comps[part].score * 100);
+  const points = allocatePoints(exact, score);
+  return PARTS.map((part, i) => ({
+    part,
+    points: points[i],
+    max: Math.round(weightOf(part) * 100),
+    status: partStatus(part, listing, comps[part]),
+    inputs: partInputs(part, listing, comps[part]),
+  }));
+}
+
+/**
  * Compute final SmartBnB score (0..100) + breakdown
  * @param {listingInput} listing
  * @param {scoreConfig} [config]
@@ -211,8 +317,12 @@ function computeSmartScore(listing, config = {}) {
     (isNum(w.superhost) ? w.superhost : 0) * compSuper.score +
     (isNum(w.amenities) ? w.amenities : 0) * compAmen.score;
 
+  const score = Math.round(clamp01(score01) * 100);
+  const comps = { price: compPrice, reviews: compReviews, amenities: compAmen, superhost: compSuper };
+
   return {
-    score: Math.round(clamp01(score01) * 100),
+    score,
+    parts: scoreParts(listing, comps, w, score),
     breakdown: {
       weights: {
         price: w.price,

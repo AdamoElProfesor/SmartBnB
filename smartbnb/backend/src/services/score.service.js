@@ -92,7 +92,7 @@ exports._resetFailures = () => recentFailures.clear();
  * Compute SmartBnB score from an Airbnb URL, with the AI analysis in the given language
  * @param {string} airbnbUrl
  * @param {{ lang?: string }} [options]
- * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, active?: boolean, last_seen?: string|null, smart_score?: number|null, listing?: object, analysis?: object|null }>}
+ * @returns {Promise<{ ok: boolean, error?: string, listing_id?: string, active?: boolean, last_seen?: string|null, smart_score?: number|null, breakdown?: Array<object>|null, listing?: object, analysis?: object|null }>}
  */
 exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
   const { id, shortLink } = await urlResolver.resolveListingId(String(airbnbUrl || ""));
@@ -135,6 +135,7 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
       listing_id: String(id),
       ...lifetime,
       smart_score: null,
+      breakdown: null,
       listing: listingSummary,
       analysis: null,
       analysis_cached: false,
@@ -149,6 +150,7 @@ exports.computeFromUrl = async (airbnbUrl, { lang = DEFAULT_LANG } = {}) => {
     listing_id: String(id),
     ...lifetime,
     smart_score: score.score,
+    breakdown: score.parts,
     listing: listingSummary,
     analysis,
     analysis_cached: cached,
