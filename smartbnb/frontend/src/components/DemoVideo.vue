@@ -27,7 +27,8 @@ import { ref } from "vue";
 import { t } from "../i18n";
 
 // Served by the app itself (frontend/public/media), subtitles are burned in
-const VIDEO_URL = "/media/smartbnb-demo.mp4";
+// ?v= changes with the video, so browsers and Cloudflare drop their cached copy
+const VIDEO_URL = "/media/smartbnb-demo.mp4?v=2";
 const POSTER_URL = "/media/smartbnb-demo-poster.jpg";
 
 const dialog = ref(null);
