@@ -277,6 +277,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-30-listing-activity.sql` | `listing_activity` table (#47), with its row level security, grants and policies |
 | `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
 | `2026-09-30-price-trends-panel.sql` | `price_trends` on the same listings (#17): `start_median` and `end_median` dropped, `n_listings` added, the table emptied until the next run |
+| `2026-09-30-price-scrape-tiles.sql` | `price_scrape_tiles`, the map tiles the price scraper has searched in a run, so an interrupted run resumes (#37) |
 
 A column that changes name goes through **expand / contract**, so the site
 keeps working at every step: the expand migration adds the new column, the

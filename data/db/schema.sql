@@ -2,8 +2,8 @@
 --
 -- Reconstructed from the queries in smartbnb/backend/src/repositories/sql,
 -- data/db/load_data.py and the dbt models of data/transform. Safe to re-run: it drops and
--- recreates every table except price_observations (collected prices) and
--- etl_runs (the history of the loads).
+-- recreates every table except price_observations and price_scrape_tiles
+-- (collected prices and their progress) and etl_runs (the history of the loads).
 
 DROP TABLE IF EXISTS
   public.ai_analyses,
@@ -184,6 +184,18 @@ CREATE TABLE IF NOT EXISTS public.price_observations (
 CREATE INDEX IF NOT EXISTS price_observations_listing_idx
   ON public.price_observations (listing_id, observed_at DESC);
 
+-- Map tiles the price scraper has searched in a run, so an interrupted run
+-- resumes where it stopped (done: its listings are stored; split: too many
+-- results, its four quarters are searched instead). Written in the same
+-- transaction as the tile's price_observations. Kept like them.
+CREATE TABLE IF NOT EXISTS public.price_scrape_tiles (
+  run_id   text        NOT NULL,
+  tile     text        NOT NULL,   -- "sw_lat,sw_lng,ne_lat,ne_lng", 5 decimals
+  status   text        NOT NULL CHECK (status IN ('done', 'split')),
+  done_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, tile)
+);
+
 -- -----------------------------------------------------------------
 -- Cache of the AI pros/cons analysis, filled by POST /api/score.
 -- data_version is a hash of the data sent to the model, so a new scrape
@@ -249,6 +261,7 @@ ALTER TABLE public.listing_activity              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_trends                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_analyses                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.price_observations            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_scrape_tiles            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.etl_runs                      ENABLE ROW LEVEL SECURITY;
 
 -- Supabase only: also hide the tables from the anon / authenticated roles
