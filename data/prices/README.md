@@ -34,8 +34,8 @@ price_observations               raw layer: one row per listing and run,
 current_prices                   newest price per listing (snapshots or
         │                        observations, whichever is newer)
         ▼
-neighbourhood_room_type_stats    median price per neighbourhood and room
-                                 type, one price per listing
+price_baselines                  median price of the similar stays of each
+                                 listing, one price per listing
 ```
 
 ## Price metric

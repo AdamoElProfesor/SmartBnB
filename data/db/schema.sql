@@ -12,7 +12,7 @@ DROP TABLE IF EXISTS
   public.price_trends,
   public.current_prices,
   public.neighbourhood_stats,
-  public.neighbourhood_room_type_stats,
+  public.neighbourhood_room_type_stats,  -- replaced by price_baselines (#19)
   public.airbnb_points,
   public.airbnb_amenities,
   public.amenity_points,
@@ -139,15 +139,6 @@ CREATE TABLE public.price_baselines (
   n_listings     integer NOT NULL
 );
 
-CREATE TABLE public.neighbourhood_room_type_stats (
-  neighbourhood  text NOT NULL,
-  room_type      text NOT NULL,
-  avg_price      double precision,
-  median_price   double precision,
-  count_airbnb   integer NOT NULL,
-  PRIMARY KEY (neighbourhood, room_type)
-);
-
 -- One row per listing of the stats window behind each baseline (see the
 -- metrics in data/db/README.md)
 CREATE TABLE public.neighbourhood_stats (
@@ -268,7 +259,6 @@ ALTER TABLE public.amenity_references            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.amenity_points                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.airbnb_amenities              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.airbnb_points                 ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.neighbourhood_room_type_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.neighbourhood_stats           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.current_prices                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.listing_activity              ENABLE ROW LEVEL SECURITY;
@@ -317,7 +307,7 @@ BEGIN
     GRANT INSERT, UPDATE, DELETE, TRUNCATE ON
       public.airbnb_vaud, public.airbnb_snapshots, public.airbnb_amenities,
       public.airbnb_points, public.current_prices, public.listing_activity, public.price_baselines,
-      public.neighbourhood_room_type_stats, public.neighbourhood_stats,
+      public.neighbourhood_stats,
       public.price_trends
       TO smartbnb_loader;
     GRANT INSERT, UPDATE ON public.etl_runs TO smartbnb_loader;
@@ -328,7 +318,7 @@ BEGIN
         'CREATE POLICY smartbnb_loader_read ON public.%I FOR SELECT TO smartbnb_loader USING (true)', t);
     END LOOP;
     FOREACH t IN ARRAY ARRAY['airbnb_vaud', 'airbnb_snapshots', 'airbnb_amenities',
-                             'airbnb_points', 'current_prices', 'listing_activity', 'price_baselines', 'neighbourhood_room_type_stats',
+                             'airbnb_points', 'current_prices', 'listing_activity', 'price_baselines',
                              'neighbourhood_stats', 'price_trends', 'etl_runs'] LOOP
       EXECUTE format('DROP POLICY IF EXISTS smartbnb_loader_write ON public.%I', t);
       EXECUTE format(

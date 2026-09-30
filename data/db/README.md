@@ -38,7 +38,6 @@ price_observations ───────────────────┐ 
 | `airbnb_amenities` | Which listing has which amenity category |
 | `airbnb_points` | Amenities score per listing (sum of weights) |
 | `price_baselines` | For each active listing, the avg / median price of similar stays (same room type and capacity band) in its neighbourhood, district or the canton: what the score compares its price with |
-| `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type (replaced by `price_baselines`, dropped once the backend no longer reads it) |
 | `neighbourhood_stats` | Review baselines per neighbourhood: overall rating, reviews per month, sample sizes (see [Metrics](#metrics)) |
 | `listing_activity` | Lifetime of each listing (first and last seen) and whether it is still on Airbnb (see [Metrics](#metrics)) |
 | `current_prices` | Latest plausible price per active listing (last 6 months) |
@@ -279,6 +278,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
 | `2026-09-30-price-trends-panel.sql` | `price_trends` on the same listings (#17): `start_median` and `end_median` dropped, `n_listings` added, the table emptied until the next run |
 | `2026-09-30-price-baselines.sql` | Expand step of #19: `price_baselines`, with its row level security, grants and policies |
+| `2026-09-30-price-baselines-contract.sql` | Contract step of #19: `neighbourhood_room_type_stats` dropped, `price_baselines` replaces it |
 | `2026-09-30-price-scrape-tiles.sql` | `price_scrape_tiles`, the map tiles the price scraper has searched in a run, so an interrupted run resumes (#37) |
 
 A column that changes name goes through **expand / contract**, so the site
