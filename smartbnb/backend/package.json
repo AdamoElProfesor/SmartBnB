@@ -5,7 +5,14 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "test:integration": "jest --runInBand --config jest.integration.config.js"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/test/integration/"
+    ]
   },
   "devDependencies": {
     "jest": "^29.7.0",
