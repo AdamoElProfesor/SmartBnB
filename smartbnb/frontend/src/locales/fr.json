@@ -45,25 +45,40 @@
     "points": "{points} points sur {max}",
     "parts": {
       "price": "Prix",
-      "reviews": "Avis",
+      "reviews": "Activité des avis",
+      "rating": "Note des voyageurs",
       "amenities": "Équipements",
       "superhost": "Superhôte",
       "priceBelow": {
-        "one": "{pct}% en dessous de la médiane de {count} logement similaire.",
-        "other": "{pct}% en dessous de la médiane de {count} logements similaires."
+        "one": "{pct}% en dessous de la médiane de {count} logement similaire {place}.",
+        "other": "{pct}% en dessous de la médiane de {count} logements similaires {place}."
       },
       "priceAbove": {
-        "one": "{pct}% au-dessus de la médiane de {count} logement similaire.",
-        "other": "{pct}% au-dessus de la médiane de {count} logements similaires."
+        "one": "{pct}% au-dessus de la médiane de {count} logement similaire {place}.",
+        "other": "{pct}% au-dessus de la médiane de {count} logements similaires {place}."
       },
       "priceAt": {
-        "one": "Au niveau de la médiane de {count} logement similaire.",
-        "other": "Au niveau de la médiane de {count} logements similaires."
+        "one": "Au niveau de la médiane de {count} logement similaire {place}.",
+        "other": "Au niveau de la médiane de {count} logements similaires {place}."
       },
       "priceNoPrice": "Pas de prix récent pour cette annonce : cette part compte comme la moyenne.",
       "priceNoBaseline": "Aucun logement similaire à proximité pour comparer le prix : cette part compte comme la moyenne.",
+      "place": {
+        "neighbourhood": "à {area}",
+        "district": "dans le même district ({area})",
+        "canton": "dans tout le canton"
+      },
       "reviewsVs": "{value} avis par mois, contre {area} en moyenne dans le secteur.",
       "reviewsNone": "Pas assez d'avis pour comparer : cette part compte comme la moyenne.",
+      "ratingVs": {
+        "one": "Noté {rating} sur {count} avis.",
+        "other": "Noté {rating} sur {count} avis."
+      },
+      "ratingAdjusted": {
+        "one": "Noté {rating} sur {count} avis, compté {adjusted} : peu d'avis pèsent moins.",
+        "other": "Noté {rating} sur {count} avis, compté {adjusted} : peu d'avis pèsent moins."
+      },
+      "ratingNone": "Pas encore de note : cette part compte comme la note moyenne du canton ({area}).",
       "amenitiesVs": "{value} points d'équipements, alors que le logement le mieux équipé en a {max}.",
       "amenitiesNone": "Pas assez de données sur les équipements : cette part compte comme la moyenne.",
       "superhostYes": "L'hôte est Superhôte.",
@@ -95,14 +110,15 @@
     "goneTextNoDate": "Cette annonce n'a pas été vue sur Airbnb récemment. Elle a très probablement été retirée : SmartBnB ne lui donne pas de score, puisqu'il n'y a plus rien à réserver.",
     "copyPrompt": "Copiez ce lien :",
     "howTitle": "Comment le score est calculé",
-    "howIntro": "Chaque annonce reçoit un score sur 100, composé de quatre parties :",
+    "howIntro": "Chaque annonce reçoit un score sur 100, composé de cinq parties :",
     "weights": {
       "price": "Prix face aux logements similaires proches",
       "reviews": "Activité des avis face au secteur",
+      "rating": "Note des voyageurs, pondérée par le nombre d'avis",
       "amenities": "Équipements clés",
       "superhost": "Superhôte"
     },
-    "howNote": "Basé sur les données publiques d'InsideAirbnb. Chaque annonce est comparée au même type de logement dans le même quartier.",
+    "howNote": "Basé sur les données publiques d'Inside Airbnb. Les prix sont comparés à ceux de logements du même type et de la même taille, dans le même quartier quand il y en a assez, sinon dans le district.",
     "analysisTitle": "Ce qui ressort",
     "strengths": "Points forts",
     "watchOut": "Points d'attention",
@@ -128,7 +144,15 @@
     "at": "au niveau de la médiane {where}.",
     "below": "{pct}% en dessous de la médiane {where}.",
     "above": "{pct}% au-dessus de la médiane {where}.",
-    "where": "pour {type} à {place}"
+    "where": "pour {type} à {place}",
+    "whereBand": "pour {type} de {band} {place}",
+    "whereArea": "pour {type} {place}"
+  },
+  "band": {
+    "1-2": "1 à 2 voyageurs",
+    "3-4": "3 à 4 voyageurs",
+    "5-6": "5 à 6 voyageurs",
+    "7+": "7 voyageurs ou plus"
   },
   "roomType": {
     "entire": "logement entier",

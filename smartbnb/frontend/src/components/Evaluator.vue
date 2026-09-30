@@ -209,7 +209,8 @@ import DemoVideo from "./DemoVideo.vue";
 const EXAMPLE_URL = "https://www.airbnb.ch/rooms/53584592";
 const WEIGHTS = [
   { pct: 45, key: "price" },
-  { pct: 30, key: "reviews" },
+  { pct: 15, key: "reviews" },
+  { pct: 15, key: "rating" },
   { pct: 15, key: "amenities" },
   { pct: 10, key: "superhost" },
 ];

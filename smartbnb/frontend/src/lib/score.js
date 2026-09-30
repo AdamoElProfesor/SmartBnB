@@ -9,7 +9,22 @@ export function verdictFor(score) {
 }
 
 /**
- * Listing price against the neighbourhood median: marker positions on the
+ * Where the similar listings of a price comparison are: "in Montreux", "in
+ * the same district (Riviera-Pays-d'Enhaut)" or "across the canton"; empty
+ * when unknown
+ * @param {{ level?: string|null, area?: string|null }|null|undefined} baseline
+ */
+function comparedPlace(baseline) {
+  if (!baseline?.level) return "";
+  return t(`evaluator.parts.place.${baseline.level}`, { area: baseline.area ?? "" });
+}
+
+/** A sentence left with an empty place ends cleanly */
+const tidy = (text) => text.replace(/\s+([.,])/g, "$1").trim();
+
+/**
+ * Listing price against the median of the similar listings (same room type
+ * and capacity band, where price_baseline says): marker positions on the
  * price rule (in %) and the sentence under it. Null without both prices.
  */
 export function priceComparison(listing) {
@@ -18,7 +33,14 @@ export function priceComparison(listing) {
   if (!isNum(listing.price) || !isNum(listing.median_price) || m <= 0) return null;
   const max = Math.max(p, m) * 1.6;
   const diff = Math.round(((p - m) / m) * 100);
-  const where = t("price.where", { type: roomTypeWithArticle(listing.room_type), place: listing.neighborhood || "Vaud" });
+  const type = roomTypeWithArticle(listing.room_type);
+  const baseline = listing.price_baseline;
+  const band = baseline?.capacity_band && baseline.capacity_band !== "unknown" ? t(`band.${baseline.capacity_band}`) : null;
+  const where = !baseline?.level
+    ? t("price.where", { type, place: listing.neighborhood || "Vaud" })
+    : band
+      ? t("price.whereBand", { type, band, place: comparedPlace(baseline) })
+      : t("price.whereArea", { type, place: comparedPlace(baseline) });
   const sentence =
     Math.abs(diff) < 3
       ? t("price.at", { where })
@@ -32,14 +54,26 @@ function partSentence({ part, status, inputs = {} }) {
   if (part === "superhost") return t(k(inputs.host_is_superhost ? "superhostYes" : "superhostNo"));
   if (status === "neutral_missing_data") {
     if (part === "price") return t(k(isNum(inputs.price) ? "priceNoBaseline" : "priceNoPrice"));
+    if (part === "rating") return t(k("ratingNone"), { area: formatNumber(inputs.area_rating, 2) });
     return t(k(`${part}None`));
   }
   if (part === "price") {
     const ref = isNum(inputs.median_price) ? Number(inputs.median_price) : Number(inputs.avg_price);
     const diff = Math.round(((Number(inputs.price) - ref) / ref) * 100);
     const count = Number(inputs.comparables) || 0;
-    if (Math.abs(diff) < 3) return t(k("priceAt"), { count });
-    return t(k(diff < 0 ? "priceBelow" : "priceAbove"), { pct: Math.abs(diff), count });
+    const place = comparedPlace(inputs);
+    if (Math.abs(diff) < 3) return tidy(t(k("priceAt"), { count, place }));
+    return tidy(t(k(diff < 0 ? "priceBelow" : "priceAbove"), { pct: Math.abs(diff), count, place }));
+  }
+  if (part === "rating") {
+    const values = {
+      rating: formatNumber(inputs.rating, 2),
+      adjusted: formatNumber(inputs.adjusted_rating, 2),
+      count: Number(inputs.number_of_reviews) || 0,
+    };
+    // Say it when few reviews moved the rating that counts
+    const moved = Math.abs(Number(inputs.adjusted_rating) - Number(inputs.rating)) >= 0.05;
+    return t(k(moved ? "ratingAdjusted" : "ratingVs"), values);
   }
   if (part === "reviews") {
     return t(k("reviewsVs"), {

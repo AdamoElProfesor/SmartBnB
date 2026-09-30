@@ -45,25 +45,40 @@
     "points": "{points} of {max} points",
     "parts": {
       "price": "Price",
-      "reviews": "Reviews",
+      "reviews": "Review activity",
+      "rating": "Guest rating",
       "amenities": "Amenities",
       "superhost": "Superhost",
       "priceBelow": {
-        "one": "{pct}% below the median of {count} similar stay.",
-        "other": "{pct}% below the median of {count} similar stays."
+        "one": "{pct}% below the median of {count} similar stay {place}.",
+        "other": "{pct}% below the median of {count} similar stays {place}."
       },
       "priceAbove": {
-        "one": "{pct}% above the median of {count} similar stay.",
-        "other": "{pct}% above the median of {count} similar stays."
+        "one": "{pct}% above the median of {count} similar stay {place}.",
+        "other": "{pct}% above the median of {count} similar stays {place}."
       },
       "priceAt": {
-        "one": "At the median of {count} similar stay.",
-        "other": "At the median of {count} similar stays."
+        "one": "At the median of {count} similar stay {place}.",
+        "other": "At the median of {count} similar stays {place}."
       },
       "priceNoPrice": "No recent price for this listing, so this part counts as average.",
       "priceNoBaseline": "No similar stays nearby to compare the price with, so this part counts as average.",
+      "place": {
+        "neighbourhood": "in {area}",
+        "district": "in the same district ({area})",
+        "canton": "across the canton"
+      },
       "reviewsVs": "{value} reviews a month, against {area} on average in the area.",
       "reviewsNone": "Not enough review data to compare, so this part counts as average.",
+      "ratingVs": {
+        "one": "Rated {rating} from {count} review.",
+        "other": "Rated {rating} from {count} reviews."
+      },
+      "ratingAdjusted": {
+        "one": "Rated {rating} from {count} review, counted as {adjusted}: a few reviews weigh less.",
+        "other": "Rated {rating} from {count} reviews, counted as {adjusted}: a few reviews weigh less."
+      },
+      "ratingNone": "No rating yet, so this part counts as the average rating of the canton ({area}).",
       "amenitiesVs": "{value} amenity points, where the best-equipped stay has {max}.",
       "amenitiesNone": "Not enough amenity data, so this part counts as average.",
       "superhostYes": "The host is a Superhost.",
@@ -95,14 +110,15 @@
     "goneTextNoDate": "This listing has not been seen on Airbnb lately. It has most likely been removed, so SmartBnB does not score it: there is nothing left to book.",
     "copyPrompt": "Copy this link:",
     "howTitle": "How the score works",
-    "howIntro": "Each listing gets a score out of 100, built from four parts:",
+    "howIntro": "Each listing gets a score out of 100, built from five parts:",
     "weights": {
       "price": "Price against similar stays nearby",
       "reviews": "Review activity against the area",
+      "rating": "Guest rating, weighed by the number of reviews",
       "amenities": "Key amenities",
       "superhost": "Superhost"
     },
-    "howNote": "Based on public InsideAirbnb data. Listings are compared with the same room type in the same neighbourhood.",
+    "howNote": "Based on public Inside Airbnb data. Prices are compared with stays of the same type and size, in the same neighbourhood when it has enough of them, else in the district.",
     "analysisTitle": "What stands out",
     "strengths": "Strengths",
     "watchOut": "Watch out for",
@@ -128,7 +144,15 @@
     "at": "right at the median {where}.",
     "below": "{pct}% below the median {where}.",
     "above": "{pct}% above the median {where}.",
-    "where": "for {type} in {place}"
+    "where": "for {type} in {place}",
+    "whereBand": "for {type} for {band} {place}",
+    "whereArea": "for {type} {place}"
+  },
+  "band": {
+    "1-2": "1-2 guests",
+    "3-4": "3-4 guests",
+    "5-6": "5-6 guests",
+    "7+": "7 guests or more"
   },
   "roomType": {
     "entire": "entire home",

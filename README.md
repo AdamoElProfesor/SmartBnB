@@ -27,14 +27,21 @@ activity, amenities and host status, summed up in a score out of 100.
 
 ## How the score works
 
-Each listing is compared with the same room type in the same neighbourhood:
+Each listing gets a score out of 100, from five parts:
 
 | Part | Weight | Better when |
 |---|---|---|
-| Price | 45% | the nightly price is below the local median |
-| Review activity | 30% | the listing gets more reviews per month than the area |
+| Price | 45% | the nightly price is below the median of similar stays |
+| Review activity | 15% | the listing gets more reviews per month than the area |
+| Guest rating | 15% | the rating is high, weighed by the number of reviews (4.5 or less gives no point) |
 | Key amenities | 15% | it has the amenities guests look for most |
 | Superhost | 10% | the host is a Superhost |
+
+Similar stays are those of the same room type and capacity (1-2, 3-4, 5-6,
+7+ guests), in the same neighbourhood when it has at least 5 of them, else
+in the district, else in the whole canton. The rating is a Bayesian average:
+a listing with few reviews is pulled towards the canton's mean rating, so a
+5.0 from 2 guests is not worth more than a 4.9 from 200.
 
 The code is in
 [`smartbnb/backend/src/utils/score.utils.js`](smartbnb/backend/src/utils/score.utils.js).
