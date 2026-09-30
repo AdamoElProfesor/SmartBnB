@@ -136,14 +136,24 @@ Rate limited per visitor: 30 checks per minute by default
       "points": 0,
       "max": 45,
       "status": "ok",
-      "inputs": { "price": 0, "median_price": 0, "avg_price": 0, "comparables": 0 }
+      "inputs": {
+        "price": 0, "median_price": 0, "avg_price": 0, "comparables": 0,
+        "level": "neighbourhood", "area": "string", "capacity_band": "3-4"
+      }
     },
     {
       "part": "reviews",
       "points": 0,
-      "max": 30,
+      "max": 15,
       "status": "ok",
       "inputs": { "reviews_per_month": 0, "area_reviews_per_month": 0, "comparables": 0 }
+    },
+    {
+      "part": "rating",
+      "points": 0,
+      "max": 15,
+      "status": "ok",
+      "inputs": { "rating": 0, "number_of_reviews": 0, "adjusted_rating": 0, "area_rating": 0 }
     },
     { "part": "amenities", "points": 0, "max": 15, "status": "ok", "inputs": { "amenities_score": 0, "min": 0, "max": 0 } },
     { "part": "superhost", "points": 0, "max": 10, "status": "ok", "inputs": { "host_is_superhost": true } }
@@ -159,6 +169,8 @@ Rate limited per visitor: 30 checks per minute by default
     "price_date": "YYYY-MM-DD",
     "median_price": 0,
     "avg_price": 0,
+    "price_baseline": { "level": "neighbourhood", "area": "string", "capacity_band": "3-4", "n_listings": 0 },
+    "number_of_reviews": 0,
     "rating": 0,
     "neighborhood_avg_rating": 0,
     "reviews_per_month": 0,
@@ -192,13 +204,22 @@ Rate limited per visitor: 30 checks per minute by default
   `breakdown` says where the score comes from, one entry per part in this
   order: `points` earned out of `max` (the part's weight), whole numbers that
   add up exactly to `smart_score` (largest remainder rounding). `status` is
-  `ok`, `neutral_missing_data` when the part lacked data and counts as half
-  its points (no recent price, no neighbourhood baseline), or `low_sample`
-  when its neighbourhood baseline rests on fewer than 5 listings.
-  `comparables` is that number of listings: the listings behind the median
-  price of the same room type in the neighbourhood, and behind the
-  neighbourhood's reviews average. `breakdown` is `null` for a listing that
-  is not scored.
+  `ok`, `neutral_missing_data` when the part lacked data and counts as a
+  middle value (half its points; for the rating, the canton's mean rating),
+  or `low_sample` when its baseline rests on fewer than 5 listings.
+
+  - `price`: the listing's price against the median of similar stays (same
+    room type and capacity band `1-2`, `3-4`, `5-6`, `7+`), in the
+    neighbourhood when it has at least 5 of them, else the district, else
+    the canton (`level`, `area`). `comparables` is their number.
+  - `reviews`: reviews per month against the neighbourhood average;
+    `comparables` is the number of listings behind that average.
+  - `rating`: a Bayesian average, the rating pulled towards the canton's mean
+    (`area_rating`) as if the listing had 10 more reviews at that mean
+    (`adjusted_rating`); 4.5 or less gives no point, 5.0 all 15.
+
+  `listing.price_baseline` repeats where `median_price` comes from.
+  `breakdown` is `null` for a listing that is not scored.
 
   Fields without data are `null`.
 

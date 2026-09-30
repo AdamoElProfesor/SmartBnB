@@ -37,7 +37,8 @@ price_observations ───────────────────┐ 
 | `amenity_references` / `amenity_points` | Amenity categories and their weight |
 | `airbnb_amenities` | Which listing has which amenity category |
 | `airbnb_points` | Amenities score per listing (sum of weights) |
-| `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type |
+| `price_baselines` | For each active listing, the avg / median price of similar stays (same room type and capacity band) in its neighbourhood, district or the canton: what the score compares its price with |
+| `neighbourhood_room_type_stats` | Avg / median price per neighbourhood and room type (replaced by `price_baselines`, dropped once the backend no longer reads it) |
 | `neighbourhood_stats` | Review baselines per neighbourhood: overall rating, reviews per month, sample sizes (see [Metrics](#metrics)) |
 | `listing_activity` | Lifetime of each listing (first and last seen) and whether it is still on Airbnb (see [Metrics](#metrics)) |
 | `current_prices` | Latest plausible price per active listing (last 6 months) |
@@ -159,7 +160,7 @@ A district needs 20 such listings (`min_trend_listings`).
 | `listing_activity.is_active` | The listing is in one of the last 2 scrapes (`active_scrapes`), so presumably still on Airbnb | one row per listing ever seen | the last 2 scrapes | never empty |
 | `current_prices.price` | Newest nightly price of the listing, 20 to 5,000 CHF | one row per listing | seen in the 6 months before the newest price | a price outside the range is skipped, the listing keeps its previous one |
 | `current_prices.source` | Which price definition it comes from: `insideairbnb` (price column of the scrape), `scrape_search` (price scraper, a Friday, 2 nights, about 4 weeks ahead), `scrape_listing` (price scraper, next free stay of the minimum length) | per price | | never empty |
-| `neighbourhood_room_type_stats.median_price`, `avg_price` | Median and mean of `current_prices.price` per neighbourhood and room type | one price per listing | prices of the last 3 months | listings without a current price are left out |
+| `price_baselines.median_price`, `avg_price`, `n_listings` | Median, mean and number of the `current_prices.price` of the listings of the same room type and capacity band (1-2, 3-4, 5-6, 7+ guests), in the listing's neighbourhood when it has at least 5 (`min_price_comparables`), else its district, else the canton (`level`, `area`) | one price per listing | prices of the last 3 months | listings without a current price are left out; every active listing gets a baseline |
 | `neighbourhood_stats.avg_reviews_per_month` | Mean `reviews_per_month` of the neighbourhood's listings | one row per listing: its latest snapshot | scrapes of the last 3 months | a listing with no review counts as 0, as on the listing side of the score (Inside Airbnb leaves the value empty exactly then) |
 | `neighbourhood_stats.avg_rating` | Mean overall rating (`review_scores_rating`, 1 to 5), the metric shown for the listing | one row per listing: its latest snapshot | scrapes of the last 3 months | listings without a rating (no review) are left out |
 | `neighbourhood_stats.n_listings`, `n_rated_listings` | Number of listings behind `avg_reviews_per_month` and behind `avg_rating` | | | |
@@ -277,6 +278,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f data/db/migrations/<file>.sql
 | `2026-09-30-listing-activity.sql` | `listing_activity` table (#47), with its row level security, grants and policies |
 | `2026-09-30-baseline-columns-contract.sql` | Contract step of #49: `neighbourhood_stats.avg_reviews` dropped, the new columns made `NOT NULL`, `current_prices.source` limited to its three values |
 | `2026-09-30-price-trends-panel.sql` | `price_trends` on the same listings (#17): `start_median` and `end_median` dropped, `n_listings` added, the table emptied until the next run |
+| `2026-09-30-price-baselines.sql` | Expand step of #19: `price_baselines`, with its row level security, grants and policies |
 | `2026-09-30-price-scrape-tiles.sql` | `price_scrape_tiles`, the map tiles the price scraper has searched in a run, so an interrupted run resumes (#37) |
 
 A column that changes name goes through **expand / contract**, so the site
