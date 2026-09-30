@@ -106,7 +106,9 @@
     "analysisTitle": "What stands out",
     "strengths": "Strengths",
     "watchOut": "Watch out for",
-    "aiNote": "Written by an AI model from this listing's numbers. It can make mistakes."
+    "aiNote": "Written by an AI model from this listing's numbers. It can make mistakes.",
+    "analysisLoading": "Writing a short analysis…",
+    "analysisFailed": "The written analysis is not available right now. The score above does not depend on it."
   },
   "verdict": {
     "good": {

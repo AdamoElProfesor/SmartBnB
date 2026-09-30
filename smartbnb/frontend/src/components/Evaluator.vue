@@ -164,8 +164,19 @@
       </aside>
 
       <!-- AI read of the listing: fills the column under the form while the result card is tall -->
-      <section v-if="result && hasAnalysis" class="analysis" aria-labelledby="analysis-title">
+      <section
+        v-if="result && analysisState !== 'idle'"
+        class="analysis"
+        aria-labelledby="analysis-title"
+        :aria-busy="analysisState === 'loading'"
+      >
         <h2 id="analysis-title">{{ t("evaluator.analysisTitle") }}</h2>
+        <!-- The score is already shown: the analysis arrives on its own -->
+        <p v-if="analysisState === 'loading'" class="analysis-state">
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          {{ t("evaluator.analysisLoading") }}
+        </p>
+        <p v-else-if="analysisState === 'failed'" class="analysis-state">{{ t("evaluator.analysisFailed") }}</p>
         <p v-if="summary" class="analysis-summary">{{ summary }}</p>
         <div class="analysis-cols">
           <div v-if="pros.length">
@@ -181,7 +192,7 @@
             </ul>
           </div>
         </div>
-        <p class="fine">{{ t("evaluator.aiNote") }}</p>
+        <p v-if="hasAnalysis" class="fine">{{ t("evaluator.aiNote") }}</p>
       </section>
     </div>
   </section>
@@ -213,10 +224,14 @@ const shownScore = ref(0);
 const resultEl = ref(null);
 const copied = ref(false);
 
+// The AI analysis loads after the score: idle (none expected), loading, ready or failed
+const analysis = ref(null);
+const analysisState = ref("idle");
+
 const listing = computed(() => result.value?.listing || {});
-const pros = computed(() => result.value?.analysis?.pros || []);
-const cons = computed(() => result.value?.analysis?.cons || []);
-const summary = computed(() => result.value?.analysis?.summary || "");
+const pros = computed(() => analysis.value?.pros || []);
+const cons = computed(() => analysis.value?.cons || []);
+const summary = computed(() => analysis.value?.summary || "");
 const hasAnalysis = computed(() => pros.value.length > 0 || cons.value.length > 0 || !!summary.value);
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
@@ -264,6 +279,7 @@ function checkFromAddress() {
   if (id) return evaluate(`https://www.airbnb.ch/rooms/${id}`, { updateAddress: false });
   // Back to the page without a listing: show the empty state again
   result.value = null;
+  showAnalysis(null);
   errorStatus.value = null;
   url.value = "";
 }
@@ -305,6 +321,7 @@ async function evaluate(fromUrl, { updateAddress = true } = {}) {
   errorStatus.value = null;
   // Hide the previous listing so its score is never read as the answer to this link
   result.value = null;
+  showAnalysis(null);
   const lang = locale.value;
   try {
     const data = await apiPost("/score", { airbnbUrl: url.value, lang });
@@ -314,8 +331,10 @@ async function evaluate(fromUrl, { updateAddress = true } = {}) {
       history.pushState(null, "", shareUrl(data.listing_id));
     }
     scrollToResult();
-    // The language changed while the check was running
-    if (lang !== locale.value) refreshAnalysis();
+    // The language changed while the check was running, or the analysis is not written yet
+    if (data.active === false) showAnalysis(null);
+    else if (lang !== locale.value || data.analysis_pending) loadAnalysis();
+    else showAnalysis(data.analysis);
   } catch (e) {
     console.error(e);
     // The address must not keep pointing to a listing that is no longer shown
@@ -326,20 +345,45 @@ async function evaluate(fromUrl, { updateAddress = true } = {}) {
   }
 }
 
-// The AI analysis is written in the visitor's language: after a language switch,
-// ask for the shown listing again. The current result stays on screen meanwhile,
-// and also if this fails.
-async function refreshAnalysis() {
+// Each request gets a number, so an answer for a listing or a language that is
+// no longer shown is dropped
+let analysisRequest = 0;
+
+/** Shows an analysis that came with the score; none expected when null */
+function showAnalysis(value) {
+  analysisRequest++;
+  analysis.value = value;
+  analysisState.value = value ? "ready" : "idle";
+}
+
+/**
+ * Asks for the AI analysis of the shown listing in the current language. The
+ * score stays on screen meanwhile; an empty answer or an error shows a quiet
+ * message instead of the analysis.
+ */
+async function loadAnalysis() {
   const id = result.value?.listing_id;
-  if (!id || loading.value) return;
+  if (!id || result.value?.active === false) return;
+  const request = ++analysisRequest;
+  analysisState.value = "loading";
+  let data = null;
   try {
-    const data = await apiPost("/score", { airbnbUrl: id, lang: locale.value });
-    if (data?.ok && result.value?.listing_id === id) result.value = data;
+    data = await apiPost("/score/analysis", { listingId: id, lang: locale.value });
   } catch (e) {
     console.error(e);
   }
+  if (request !== analysisRequest) return;
+  const received = data?.ok ? data.analysis : null;
+  const empty = !received || !(received.pros?.length || received.cons?.length || received.summary);
+  analysis.value = empty ? null : received;
+  analysisState.value = empty ? "failed" : "ready";
 }
-watch(locale, refreshAnalysis);
+
+// The AI analysis is written in the visitor's language: after a language
+// switch, ask for it again (the score does not change)
+watch(locale, () => {
+  if (result.value && !loading.value) loadAnalysis();
+});
 </script>
 
 <style scoped>
@@ -550,6 +594,15 @@ h1:lang(fr) { max-width: 13ch; }
 .analysis .pro { background: #E4EFE1; border-color: var(--good); }
 .analysis .con { background: #F8EEDC; border-color: var(--mid); }
 .analysis .fine { margin-top: 16px; }
+.analysis-state { color: var(--ink-2); margin: 0; display: flex; align-items: center; gap: 10px; }
+.dots { display: inline-flex; gap: 4px; }
+.dots span {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes pulse { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 
 .res-actions {
   display: flex;
@@ -604,5 +657,6 @@ h1:lang(fr) { max-width: 13ch; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rule-dot { animation: none; }
+  .dots span { animation: none; opacity: 0.6; }
 }
 </style>
