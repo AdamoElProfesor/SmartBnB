@@ -1,6 +1,6 @@
 pandas>=3.0.6
 psycopg[binary]>=3.3.6
-PyYAML>=6.0.2
+PyYAML>=6.0.3
 # dbt minor versions can change behaviour: bump them on purpose
 dbt-core>=1.12.5,<1.13
 dbt-postgres>=1.11.0,<1.12
