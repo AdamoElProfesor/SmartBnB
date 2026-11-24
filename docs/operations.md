@@ -18,13 +18,32 @@ Logs: Cloudflare dashboard, Workers & Pages, `smartbnb-keepalive`, Logs.
 ## Uptime checks and alerts
 
 [.github/workflows/uptime.yml](../.github/workflows/uptime.yml) runs every 30
-minutes (and on demand from the Actions tab). It checks that:
+minutes, at :13 and :43 (and on demand from the Actions tab). GitHub's
+scheduler is best effort: runs are often late and sometimes skipped,
+especially those queued at :00 and :30, hence the off-peak minutes. It checks
+that:
 
 - `https://www.smartbnb.ch/` answers 200 and contains the app title;
 - `https://www.smartbnb.ch/api/histogram` answers 200 with valid JSON.
 
 Each URL gets 3 attempts with a 60 s timeout, so a cold start is not reported
 as an outage. No secret is needed.
+
+**Self-healing when Render sleeps.** If the Render service ever falls asleep
+(restart on Render's side, keep-alive pings missed), requests that come
+through the relay Worker get `HTTP 429` with `cf-mitigated: challenge` from
+Render's edge instead of waking it. The keep-alive Worker goes through the
+same relay, so it cannot wake the service either and the site stays down
+(this happened from 2026-11-22 to 2026-11-24). A request sent straight to
+`smartbnb-twsi.onrender.com` does wake it. So when the check fails, the
+workflow calls `/api/health` on the Render URL directly, then checks the site
+again:
+
+- recovered: the run succeeds with a warning annotation (no email);
+- still down: the run fails and the error shows the last HTTP status of the
+  site and of the origin.
+
+To wake the service by hand: `curl https://smartbnb-twsi.onrender.com/api/health`.
 
 **Where alerts go:** when a run fails, GitHub emails the repository owner
 (default notification settings: Settings, Notifications, GitHub Actions,

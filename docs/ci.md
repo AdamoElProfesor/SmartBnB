@@ -6,7 +6,7 @@
 |---|---|---|
 | `.github/workflows/ci.yml` | pull request to `main`, push to `main`, on demand | Frontend lint, tests and build, backend tests, data pipeline tests, check that no data file is committed, end-to-end run of the data pipeline on synthetic data in a throwaway Postgres (it must be idempotent), dbt docs (artifact `dbt-docs`) |
 | `.github/workflows/data-refresh.yml` | every Monday | Loads, transforms (dbt), audits and publishes the data, archives a new snapshot in the private `SmartBnB-data` repository ([operations.md](operations.md#data-refresh)) |
-| `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer |
+| `.github/workflows/uptime.yml` | every 30 minutes | Checks that smartbnb.ch and its API answer, wakes the Render service if it sleeps |
 | `.github/workflows/backup.yml` | every day | Encrypted `pg_dump` of the database, kept 30 days |
 
 The app tests mock the database and the AI, and the pipeline runs on
