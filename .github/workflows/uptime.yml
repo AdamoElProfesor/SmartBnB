@@ -4,7 +4,9 @@ name: Uptime check
 # notification settings), which is the alerting channel for smartbnb.ch.
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Off-peak minutes: GitHub delays or drops scheduled runs queued at :00
+    # and :30, when most repositories schedule theirs.
+    - cron: "13,43 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +22,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check https://www.smartbnb.ch
+        env:
+          SITE: https://www.smartbnb.ch
+          # The Render service behind the Cloudflare relay Worker.
+          ORIGIN: https://smartbnb-twsi.onrender.com
         run: |
           set -uo pipefail
           # 3 attempts with a 60 s timeout each, so a Render cold start does
@@ -27,21 +33,51 @@ jobs:
           check() {
             local url="$1" expect="$2" type="$3"
             for attempt in 1 2 3; do
-              code=$(curl -sS -o body.txt -w '%{http_code}' --max-time 60 \
-                -H 'User-Agent: smartbnb-uptime' "$url") || code=000
+              rm -f headers.txt
+              code=$(curl -sS -o body.txt -D headers.txt -w '%{http_code}' \
+                --max-time 60 -H 'User-Agent: smartbnb-uptime' "$url") || code=000
               if [ "$code" = 200 ] && grep -q "$expect" body.txt; then
                 if [ "$type" != json ] || jq -e . body.txt > /dev/null; then
                   echo "OK   $url (attempt $attempt)"
                   return 0
                 fi
               fi
-              echo "FAIL $url attempt $attempt: HTTP $code"
+              # cf-mitigated: challenge means Cloudflare answered with a bot
+              # challenge instead of letting the request reach the app.
+              mitigated=$(grep -i '^cf-mitigated:' headers.txt 2> /dev/null | tr -d '\r' || true)
+              echo "FAIL $url attempt $attempt: HTTP $code $mitigated"
               [ "$attempt" -lt 3 ] && sleep 20
             done
-            echo "::error::$url is down (last HTTP status $code)"
+            failures+=("$url (last HTTP status $code${mitigated:+, $mitigated})")
             return 1
           }
-          status=0
-          check "https://www.smartbnb.ch/" "<title>SmartBnB" html || status=1
-          check "https://www.smartbnb.ch/api/histogram" '"ok":true' json || status=1
-          exit $status
+          check_site() {
+            failures=()
+            local status=0
+            check "$SITE/" "<title>SmartBnB" html || status=1
+            check "$SITE/api/histogram" '"ok":true' json || status=1
+            return $status
+          }
+
+          if check_site; then exit 0; fi
+          first_failures=("${failures[@]}")
+
+          # When the Render service is asleep, requests coming through the
+          # relay Worker get a 429 challenge and never wake it, so the
+          # keepalive Worker cannot bring it back either. A direct request to
+          # the origin does wake it: send one, then check the site again.
+          echo "Site check failed, waking the origin directly"
+          origin_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 120 \
+            -H 'User-Agent: smartbnb-uptime' "$ORIGIN/api/health") || origin_code=000
+          echo "Origin $ORIGIN/api/health answered HTTP $origin_code"
+
+          if check_site; then
+            for f in "${first_failures[@]}"; do
+              echo "::warning::Was down, recovered after waking the origin: $f"
+            done
+            exit 0
+          fi
+          for f in "${failures[@]}"; do
+            echo "::error::$f is down (origin answered HTTP $origin_code)"
+          done
+          exit 1
